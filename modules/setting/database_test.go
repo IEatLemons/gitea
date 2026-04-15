@@ -107,3 +107,26 @@ func Test_getPostgreSQLConnectionString(t *testing.T) {
 		assert.Equal(t, test.Output, connStr)
 	}
 }
+
+func Test_DBConnStr_postgresConnStr(t *testing.T) {
+	defer func() {
+		Database.Type = ""
+		Database.ConnStr = ""
+	}()
+
+	Database.Type = "postgres"
+	Database.ConnStr = "postgres://u:p@127.0.0.1:5432/gitea?sslmode=disable"
+	out, err := DBConnStr()
+	assert.NoError(t, err)
+	assert.Equal(t, Database.ConnStr, out)
+
+	Database.ConnStr = "mysql://wrong"
+	_, err = DBConnStr()
+	assert.Error(t, err)
+
+	Database.ConnStr = ""
+	Database.Type = "mysql"
+	Database.ConnStr = "postgres://u:p@h/db"
+	_, err = DBConnStr()
+	assert.Error(t, err)
+}

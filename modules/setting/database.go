@@ -26,6 +26,7 @@ var (
 	// Database holds the database settings
 	Database = struct {
 		Type               DatabaseType
+		ConnStr            string // optional full PostgreSQL URL; see CONN_STR / DATABASE_URL
 		Host               string
 		Name               string
 		User               string
@@ -61,6 +62,12 @@ func loadDBSetting(rootCfg ConfigProvider) {
 	sec := rootCfg.Section("database")
 	Database.Type = DatabaseType(sec.Key("DB_TYPE").String())
 
+	Database.ConnStr = strings.TrimSpace(sec.Key("CONN_STR").String())
+	if Database.ConnStr == "" && Database.Type.IsPostgreSQL() {
+		// Railway, Heroku, and other hosts often inject a single DATABASE_URL for PostgreSQL.
+		Database.ConnStr = strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	}
+
 	Database.Host = sec.Key("HOST").String()
 	Database.Name = sec.Key("NAME").String()
 	Database.User = sec.Key("USER").String()
@@ -93,6 +100,23 @@ func loadDBSetting(rootCfg ConfigProvider) {
 
 // DBConnStr returns database connection string
 func DBConnStr() (string, error) {
+	if Database.ConnStr != "" {
+		if !Database.Type.IsPostgreSQL() {
+			return "", errors.New("CONN_STR and DATABASE_URL are only supported when DB_TYPE is postgres")
+		}
+		u, err := url.Parse(Database.ConnStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid PostgreSQL connection string: %w", err)
+		}
+		switch strings.ToLower(u.Scheme) {
+		case "postgres", "postgresql":
+			// lib/pq accepts both schemes
+		default:
+			return "", fmt.Errorf("PostgreSQL connection string must use postgres:// or postgresql:// scheme, got %q", u.Scheme)
+		}
+		return Database.ConnStr, nil
+	}
+
 	var connStr string
 	paramSep := "?"
 	if strings.Contains(Database.Name, paramSep) {
