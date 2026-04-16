@@ -23,31 +23,34 @@ function initPreInstall() {
     mssql: '127.0.0.1:1433',
   };
 
-  const dbHost = document.querySelector<HTMLInputElement>('#db_host')!;
-  const dbUser = document.querySelector<HTMLInputElement>('#db_user')!;
-  const dbName = document.querySelector<HTMLInputElement>('#db_name')!;
+  const dbTypeEl = document.querySelector<HTMLInputElement>('#db_type');
+  if (dbTypeEl) {
+    const dbHost = document.querySelector<HTMLInputElement>('#db_host')!;
+    const dbUser = document.querySelector<HTMLInputElement>('#db_user')!;
+    const dbName = document.querySelector<HTMLInputElement>('#db_name')!;
 
-  // Database type change detection.
-  document.querySelector<HTMLInputElement>('#db_type')!.addEventListener('change', function () {
-    const dbType = this.value;
-    hideElem('div[data-db-setting-for]');
-    showElem(`div[data-db-setting-for=${dbType}]`);
+    // Database type change detection.
+    dbTypeEl.addEventListener('change', function () {
+      const dbType = this.value;
+      hideElem('div[data-db-setting-for]');
+      showElem(`div[data-db-setting-for=${dbType}]`);
 
-    if (dbType !== 'sqlite3') {
-      // for most remote database servers
-      showElem('div[data-db-setting-for=common-host]');
-      const lastDbHost = dbHost.value;
-      const isDbHostDefault = !lastDbHost || Object.values(defaultDbHosts).includes(lastDbHost);
-      if (isDbHostDefault) {
-        dbHost.value = defaultDbHosts[dbType] ?? '';
-      }
-      if (!dbUser.value && !dbName.value) {
-        dbUser.value = defaultDbUser;
-        dbName.value = defaultDbName;
-      }
-    } // else: for SQLite3, the default path is always prepared by backend code (setting)
-  });
-  document.querySelector('#db_type')!.dispatchEvent(new Event('change'));
+      if (dbType !== 'sqlite3') {
+        // for most remote database servers
+        showElem('div[data-db-setting-for=common-host]');
+        const lastDbHost = dbHost.value;
+        const isDbHostDefault = !lastDbHost || Object.values(defaultDbHosts).includes(lastDbHost);
+        if (isDbHostDefault) {
+          dbHost.value = defaultDbHosts[dbType] ?? '';
+        }
+        if (!dbUser.value && !dbName.value) {
+          dbUser.value = defaultDbUser;
+          dbName.value = defaultDbName;
+        }
+      } // else: for SQLite3, the default path is always prepared by backend code (setting)
+    });
+    dbTypeEl.dispatchEvent(new Event('change'));
+  }
 
   const appUrl = document.querySelector<HTMLInputElement>('#app_url')!;
   if (appUrl.value.includes('://localhost')) {

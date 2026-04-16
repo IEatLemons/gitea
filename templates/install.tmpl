@@ -12,6 +12,7 @@
 
 				<form class="ui form" action="{{AppSubUrl}}/" method="post">
 					<!-- Database Settings -->
+					{{if not .SkipDatabaseForm}}
 					<h4 class="ui dividing header">{{ctx.Locale.Tr "install.db_title"}}</h4>
 					<p>{{ctx.Locale.Tr "install.require_db_desc"}}</p>
 					<div class="inline required field {{if .Err_DbType}}error{{end}}">
@@ -75,6 +76,11 @@
 							<span class="help">{{ctx.Locale.Tr "install.sqlite_helper"}}</span>
 						</div>
 					</div>
+					{{else}}
+					<h4 class="ui dividing header">{{ctx.Locale.Tr "install.db_title"}}</h4>
+					<p>{{ctx.Locale.Tr "install.db_configured_via_environment"}}</p>
+					<input type="hidden" name="db_type" value="{{.DatabaseTypeForInstall}}">
+					{{end}}
 
 					{{if .Err_DbInstalledBefore}}
 					<div>

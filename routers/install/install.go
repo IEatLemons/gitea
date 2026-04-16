@@ -66,6 +66,9 @@ func Install(ctx *context.Context) {
 		return
 	}
 
+	ctx.Data["SkipDatabaseForm"] = setting.InstallDatabaseConfiguredViaEnvironment()
+	ctx.Data["DatabaseTypeForInstall"] = setting.Database.Type.String()
+
 	form := forms.InstallForm{}
 
 	// Database settings
@@ -204,6 +207,9 @@ func SubmitInstall(ctx *context.Context) {
 
 	form := *web.GetForm(ctx).(*forms.InstallForm)
 
+	ctx.Data["SkipDatabaseForm"] = setting.InstallDatabaseConfiguredViaEnvironment()
+	ctx.Data["DatabaseTypeForInstall"] = setting.Database.Type.String()
+
 	// fix form values
 	if form.AppURL != "" && form.AppURL[len(form.AppURL)-1] != '/' {
 		form.AppURL += "/"
@@ -226,14 +232,16 @@ func SubmitInstall(ctx *context.Context) {
 	// ---- Basic checks are passed, now test configuration.
 
 	// Test database setting.
-	setting.Database.Type = setting.DatabaseType(form.DbType)
-	setting.Database.Host = form.DbHost
-	setting.Database.User = form.DbUser
-	setting.Database.Passwd = form.DbPasswd
-	setting.Database.Name = form.DbName
-	setting.Database.Schema = form.DbSchema
-	setting.Database.SSLMode = form.SSLMode
-	setting.Database.Path = form.DbPath
+	if !setting.InstallDatabaseConfiguredViaEnvironment() {
+		setting.Database.Type = setting.DatabaseType(form.DbType)
+		setting.Database.Host = form.DbHost
+		setting.Database.User = form.DbUser
+		setting.Database.Passwd = form.DbPasswd
+		setting.Database.Name = form.DbName
+		setting.Database.Schema = form.DbSchema
+		setting.Database.SSLMode = form.SSLMode
+		setting.Database.Path = form.DbPath
+	}
 	setting.Database.LogSQL = !setting.IsProd
 
 	if !checkDatabase(ctx, &form) {
@@ -353,6 +361,9 @@ func SubmitInstall(ctx *context.Context) {
 	cfg.Section("database").Key("SSL_MODE").SetValue(setting.Database.SSLMode)
 	cfg.Section("database").Key("PATH").SetValue(setting.Database.Path)
 	cfg.Section("database").Key("LOG_SQL").SetValue("false") // LOG_SQL is rarely helpful
+	if setting.Database.ConnStr != "" {
+		cfg.Section("database").Key("CONN_STR").SetValue(setting.Database.ConnStr)
+	}
 
 	cfg.Section("repository").Key("ROOT").SetValue(form.RepoRootPath)
 	cfg.Section("server").Key("SSH_DOMAIN").SetValue(form.Domain)

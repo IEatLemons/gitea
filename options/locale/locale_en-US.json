@@ -239,6 +239,7 @@
   "install.docker_helper": "If you run Gitea inside Docker, please read the <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"%s\">documentation</a> before changing any settings.",
   "install.require_db_desc": "Gitea requires MySQL, PostgreSQL, MSSQL, SQLite3 or TiDB (MySQL protocol).",
   "install.db_title": "Database Settings",
+  "install.db_configured_via_environment": "The database connection is configured by environment variables. Continue with the settings below.",
   "install.db_type": "Database Type",
   "install.host": "Host",
   "install.user": "Username",

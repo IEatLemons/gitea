@@ -232,6 +232,7 @@
   "install.docker_helper": "如果您正在使用 Docker 容器运行 Gitea，请务必先仔细阅读 <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"%s\">官方文档</a> 后再对本页面进行填写。",
   "install.require_db_desc": "Gitea 需要使用 MySQL、PostgreSQL、MSSQL、SQLite3 或 TiDB (MySQL协议) 等数据库",
   "install.db_title": "数据库设置",
+  "install.db_configured_via_environment": "数据库连接已由环境变量配置。请继续填写下方设置。",
   "install.db_type": "数据库类型",
   "install.host": "数据库主机",
   "install.user": "用户名",
