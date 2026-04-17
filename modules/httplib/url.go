@@ -71,14 +71,40 @@ func parseForwardedProtoValue(val string) (string, bool) {
 	return "", false
 }
 
+func guessPublicRootURLOverride(ctx context.Context) string {
+	raw := strings.TrimSpace(setting.Config().Server.RootURL.Value(ctx))
+	if raw == "" {
+		return ""
+	}
+	normalized, err := setting.NormalizeRootURL(raw)
+	if err != nil {
+		return ""
+	}
+	return normalized
+}
+
 // GuessCurrentAppURL tries to guess the current full public URL (with sub-path) by http headers. It always has a '/' suffix, exactly the same as setting.AppURL
 // TODO: should rename it to GuessCurrentPublicURL in the future
 func GuessCurrentAppURL(ctx context.Context) string {
+	if override := guessPublicRootURLOverride(ctx); override != "" {
+		return override
+	}
 	return GuessCurrentHostURL(ctx) + setting.AppSubURL + "/"
 }
 
 // GuessCurrentHostURL tries to guess the current full host URL (no sub-path) by http headers, there is no trailing slash.
 func GuessCurrentHostURL(ctx context.Context) string {
+	if override := guessPublicRootURLOverride(ctx); override != "" {
+		trimmed := strings.TrimRight(override, "/")
+		if setting.AppSubURL != "" {
+			return strings.TrimSuffix(trimmed, setting.AppSubURL)
+		}
+		pu, err := url.Parse(override)
+		if err == nil && pu.Host != "" {
+			return pu.Scheme + "://" + pu.Host
+		}
+		return trimmed
+	}
 	// "never" means always trust ROOT_URL and skip any request header detection.
 	if setting.PublicURLDetection == setting.PublicURLNever {
 		return strings.TrimSuffix(setting.AppURL, setting.AppSubURL+"/")
@@ -160,11 +186,11 @@ func detectURLRoutePath(ctx context.Context, s string) (routePath string, ut url
 	}
 	u.Path = cleanedPath + "/"
 	urlLower := strings.ToLower(u.String())
-	if strings.HasPrefix(urlLower, strings.ToLower(setting.AppURL)) {
-		return cleanedPath[len(setting.AppSubURL):], urlTypeGiteaAbsolute
-	}
 	guessedCurURL := GuessCurrentAppURL(ctx)
 	if strings.HasPrefix(urlLower, strings.ToLower(guessedCurURL)) {
+		return cleanedPath[len(setting.AppSubURL):], urlTypeGiteaAbsolute
+	}
+	if strings.HasPrefix(urlLower, strings.ToLower(setting.AppURL)) {
 		return cleanedPath[len(setting.AppSubURL):], urlTypeGiteaAbsolute
 	}
 	return "", urlTypeUnknown

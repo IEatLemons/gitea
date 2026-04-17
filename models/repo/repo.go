@@ -661,9 +661,10 @@ func ComposeHTTPSCloneURL(ctx context.Context, owner, repo string) string {
 }
 
 // ComposeSSHCloneURL returns SSH clone URL based on the given owner and repository name.
-func ComposeSSHCloneURL(doer *user_model.User, ownerName, repoName string) string {
+func ComposeSSHCloneURL(ctx context.Context, doer *user_model.User, ownerName, repoName string) string {
 	sshUser := setting.SSH.User
-	sshDomain := setting.SSH.Domain
+	sshDomain := setting.Config().Server.SSHDomain.Value(ctx)
+	sshPort := setting.Config().Server.SSHPort.Value(ctx)
 
 	if sshUser == "(DOER_USERNAME)" {
 		// Some users use SSH reverse-proxy and need to use the current signed-in username as the SSH user
@@ -678,8 +679,8 @@ func ComposeSSHCloneURL(doer *user_model.User, ownerName, repoName string) strin
 	}
 
 	// non-standard port, it must use full URI
-	if setting.SSH.Port != 22 {
-		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(setting.SSH.Port))
+	if sshPort != 22 {
+		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(sshPort))
 		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
 	}
 
@@ -701,7 +702,7 @@ func ComposeTeaCloneCommand(ctx context.Context, owner, repo string) string {
 
 func (repo *Repository) cloneLink(ctx context.Context, doer *user_model.User, repoPathName string) *CloneLink {
 	return &CloneLink{
-		SSH:   ComposeSSHCloneURL(doer, repo.OwnerName, repoPathName),
+		SSH:   ComposeSSHCloneURL(ctx, doer, repo.OwnerName, repoPathName),
 		HTTPS: ComposeHTTPSCloneURL(ctx, repo.OwnerName, repoPathName),
 		Tea:   ComposeTeaCloneCommand(ctx, repo.OwnerName, repoPathName),
 	}

@@ -204,6 +204,47 @@ func validateConfigKeyValue(dynKey, input string) error {
 	if !json.Valid([]byte(input)) {
 		return util.NewInvalidArgumentErrorf("invalid json value for key: %s", dynKey)
 	}
+	return validateServerPublicURLConfig(dynKey, input)
+}
+
+func validateServerPublicURLConfig(dynKey, input string) error {
+	switch dynKey {
+	case setting.ServerRootURLDynKey:
+		var s string
+		if err := json.Unmarshal([]byte(input), &s); err != nil {
+			return util.NewInvalidArgumentErrorf("invalid value for %s", dynKey)
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil
+		}
+		if _, err := setting.NormalizeRootURL(s); err != nil {
+			return util.NewInvalidArgumentErrorf("%v", err)
+		}
+	case setting.ServerSSHDomainDynKey:
+		var s string
+		if err := json.Unmarshal([]byte(input), &s); err != nil {
+			return util.NewInvalidArgumentErrorf("invalid value for %s", dynKey)
+		}
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil
+		}
+		if strings.ContainsAny(s, "/\\") {
+			return util.NewInvalidArgumentErrorf("invalid SSH domain")
+		}
+	case setting.ServerSSHPortDynKey:
+		var p int
+		if err := json.Unmarshal([]byte(input), &p); err != nil {
+			return util.NewInvalidArgumentErrorf("invalid value for %s", dynKey)
+		}
+		if p == 0 {
+			return nil
+		}
+		if p < 1 || p > 65535 {
+			return util.NewInvalidArgumentErrorf("SSH port must be between 1 and 65535")
+		}
+	}
 	return nil
 }
 

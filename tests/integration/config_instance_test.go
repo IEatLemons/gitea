@@ -5,10 +5,13 @@ package integration
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	repo_model "code.gitea.io/gitea/models/repo"
 	system_model "code.gitea.io/gitea/models/system"
+	"code.gitea.io/gitea/modules/httplib"
 	"code.gitea.io/gitea/modules/json"
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/modules/setting/config"
@@ -121,6 +124,26 @@ func TestInstance(t *testing.T) {
 			assert.Equal(t, "/-/admin", resp.Header().Get("Location"))
 
 			sess.MakeRequest(t, NewRequest(t, "GET", "/-/admin"), http.StatusOK)
+		})
+	})
+
+	t.Run("ServerPublicURLs", func(t *testing.T) {
+		t.Run("RootURLOverride", func(t *testing.T) {
+			defer mockSystemConfig(t, setting.Config().Server.RootURL, "https://public.example.com/gitea/")()
+
+			ctx := t.Context()
+			assert.Equal(t, "https://public.example.com/gitea/", httplib.GuessCurrentAppURL(ctx))
+			assert.Equal(t, "https://public.example.com", httplib.GuessCurrentHostURL(ctx))
+		})
+
+		t.Run("SSHCloneOverrides", func(t *testing.T) {
+			defer mockSystemConfig(t, setting.Config().Server.SSHDomain, "ssh.example.test")()
+			defer mockSystemConfig(t, setting.Config().Server.SSHPort, 8888)()
+
+			ctx := t.Context()
+			u := repo_model.ComposeSSHCloneURL(ctx, nil, "owner", "repo")
+			assert.Contains(t, u, "ssh.example.test:8888")
+			assert.Contains(t, u, "owner/repo.git")
 		})
 	})
 }

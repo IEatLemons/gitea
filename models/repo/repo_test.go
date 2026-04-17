@@ -4,6 +4,7 @@
 package repo
 
 import (
+	"context"
 	"testing"
 
 	"code.gitea.io/gitea/models/unit"
@@ -12,11 +13,23 @@ import (
 	"code.gitea.io/gitea/modules/markup"
 	"code.gitea.io/gitea/modules/optional"
 	"code.gitea.io/gitea/modules/setting"
+	"code.gitea.io/gitea/modules/setting/config"
 	"code.gitea.io/gitea/modules/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// composeSSHTestDynGetter yields no DB overrides so [setting.Config().Server] options use ini defaults via [config.Option] default funcs.
+type composeSSHTestDynGetter struct{}
+
+func (composeSSHTestDynGetter) GetValue(context.Context, string) (string, bool) {
+	return "", false
+}
+
+func (composeSSHTestDynGetter) GetRevision(context.Context) int { return 0 }
+
+func (composeSSHTestDynGetter) InvalidateCache() {}
 
 var (
 	countRepospts        = CountRepositoryOptions{OwnerID: 10}
@@ -173,39 +186,45 @@ func TestGetRepositoryByURL(t *testing.T) {
 }
 
 func TestComposeSSHCloneURL(t *testing.T) {
+	prevDyn := config.GetDynGetter()
+	config.SetDynGetter(composeSSHTestDynGetter{})
+	defer config.SetDynGetter(prevDyn)
+	config.GetDynGetter().InvalidateCache()
+
 	defer test.MockVariableValue(&setting.SSH, setting.SSH)()
 	defer test.MockVariableValue(&setting.Repository, setting.Repository)()
 
+	ctx := t.Context()
 	setting.SSH.User = "git"
 
 	// test SSH_DOMAIN
 	setting.SSH.Domain = "domain"
 	setting.SSH.Port = 22
 	setting.Repository.UseCompatSSHURI = false
-	assert.Equal(t, "git@domain:user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
+	assert.Equal(t, "git@domain:user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 	setting.Repository.UseCompatSSHURI = true
-	assert.Equal(t, "ssh://git@domain/user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
+	assert.Equal(t, "ssh://git@domain/user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 	// test SSH_DOMAIN while use non-standard SSH port
 	setting.SSH.Port = 123
 	setting.Repository.UseCompatSSHURI = false
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
+	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 	setting.Repository.UseCompatSSHURI = true
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
+	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 
 	// test IPv6 SSH_DOMAIN
 	setting.Repository.UseCompatSSHURI = false
 	setting.SSH.Domain = "::1"
 	setting.SSH.Port = 22
-	assert.Equal(t, "git@[::1]:user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
+	assert.Equal(t, "git@[::1]:user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 	setting.SSH.Port = 123
-	assert.Equal(t, "ssh://git@[::1]:123/user/repo.git", ComposeSSHCloneURL(nil, "user", "repo"))
+	assert.Equal(t, "ssh://git@[::1]:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 
 	setting.SSH.User = "(DOER_USERNAME)"
 	setting.SSH.Domain = "domain"
 	setting.SSH.Port = 22
-	assert.Equal(t, "doer@domain:user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
+	assert.Equal(t, "doer@domain:user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 	setting.SSH.Port = 123
-	assert.Equal(t, "ssh://doer@domain:123/user/repo.git", ComposeSSHCloneURL(&user_model.User{Name: "doer"}, "user", "repo"))
+	assert.Equal(t, "ssh://doer@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 }
 
 func TestIsUsableRepoName(t *testing.T) {

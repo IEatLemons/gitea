@@ -1,0 +1,26 @@
+<h4 class="ui top attached header">{{ctx.Locale.Tr "admin.config.server_public_urls"}}</h4>
+<div class="ui attached segment">
+	<form class="ui form system-config-form" method="post" action="{{AppSubUrl}}/-/admin/config">
+		{{$root := .SystemConfig.Server.RootURL}}
+		<div class="field">
+			<label>{{ctx.Locale.Tr "admin.config.server_root_url"}}</label>
+			<input type="text" name="{{$root.DynKey}}" value="{{$root.Value ctx}}" placeholder="{{$root.DefaultValue}}" maxlength="2048" dir="auto" spellcheck="false" autocomplete="off">
+			<div class="help">{{ctx.Locale.Tr "admin.config.server_root_url_helper"}}</div>
+		</div>
+		{{$sshDom := .SystemConfig.Server.SSHDomain}}
+		<div class="field">
+			<label>{{ctx.Locale.Tr "admin.config.server_ssh_domain"}}</label>
+			<input type="text" name="{{$sshDom.DynKey}}" value="{{$sshDom.Value ctx}}" placeholder="{{$sshDom.DefaultValue}}" maxlength="256" dir="auto" spellcheck="false" autocomplete="off">
+			<div class="help">{{ctx.Locale.Tr "admin.config.server_ssh_domain_helper"}}</div>
+		</div>
+		{{$sshPort := .SystemConfig.Server.SSHPort}}
+		<div class="field">
+			<label>{{ctx.Locale.Tr "admin.config.server_ssh_port"}}</label>
+			<input type="number" name="{{$sshPort.DynKey}}" value="{{$sshPort.Value ctx}}" data-config-value-type="number" min="0" max="65535" placeholder="{{$sshPort.DefaultValue}}">
+			<div class="help">{{ctx.Locale.Tr "admin.config.server_ssh_port_helper"}}</div>
+		</div>
+		<div class="field">
+			<button class="ui primary button">{{ctx.Locale.Tr "save"}}</button>
+		</div>
+	</form>
+</div>

@@ -60,6 +60,7 @@ type ConfigStruct struct {
 	Picture    *PictureStruct
 	Repository *RepositoryStruct
 	Instance   *InstanceStruct
+	Server     *ServerStruct
 }
 
 var (
@@ -81,6 +82,15 @@ func initDefaultConfig() {
 		Instance: &InstanceStruct{
 			WebBanner:       config.NewOption[WebBannerType]("instance.web_banner"),
 			MaintenanceMode: config.NewOption[MaintenanceModeType]("instance.maintenance_mode"),
+		},
+		Server: &ServerStruct{
+			RootURL: config.NewOption[string](ServerRootURLDynKey).WithEmptyAsDefault().WithDefaultSimple(""),
+			SSHDomain: config.NewOption[string](ServerSSHDomainDynKey).WithEmptyAsDefault().WithDefaultFunc(func() string {
+				return SSH.Domain
+			}),
+			SSHPort: config.NewOption[int](ServerSSHPortDynKey).WithEmptyAsDefault().WithDefaultFunc(func() int {
+				return SSH.Port
+			}),
 		},
 	}
 }

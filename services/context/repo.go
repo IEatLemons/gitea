@@ -376,7 +376,7 @@ func EarlyResponseForGoGetMeta(ctx *Context) {
 
 	var cloneURL string
 	if setting.Repository.GoGetCloneURLProtocol == "ssh" {
-		cloneURL = repo_model.ComposeSSHCloneURL(ctx.Doer, username, reponame)
+		cloneURL = repo_model.ComposeSSHCloneURL(ctx, ctx.Doer, username, reponame)
 	} else {
 		cloneURL = repo_model.ComposeHTTPSCloneURL(ctx, username, reponame)
 	}
