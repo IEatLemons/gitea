@@ -19,6 +19,14 @@
 			<input type="number" name="{{$sshPort.DynKey}}" value="{{$sshPort.Value ctx}}" data-config-value-type="number" min="0" max="65535" placeholder="{{$sshPort.DefaultValue}}">
 			<div class="help">{{ctx.Locale.Tr "admin.config.server_ssh_port_helper"}}</div>
 		</div>
+		{{$sshShowPort := .SystemConfig.Server.SSHShowPortInCloneURL}}
+		<div class="field">
+			<div class="ui checkbox">
+				<input type="checkbox" name="{{$sshShowPort.DynKey}}" data-config-value-type="boolean" {{if $sshShowPort.Value ctx}}checked{{end}}>
+				<label>{{ctx.Locale.Tr "admin.config.server_ssh_show_port_in_clone_url"}}</label>
+			</div>
+			<div class="help">{{ctx.Locale.Tr "admin.config.server_ssh_show_port_in_clone_url_helper"}}</div>
+		</div>
 		<div class="field">
 			<button class="ui primary button">{{ctx.Locale.Tr "save"}}</button>
 		</div>

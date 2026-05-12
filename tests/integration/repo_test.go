@@ -202,6 +202,8 @@ func testViewRepo1CloneLinkAuthorized(t *testing.T) {
 	defer tests.PrintCurrentTest(t)()
 
 	session := loginUser(t, "user2")
+	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
+	sshURL := repo_model.ComposeSSHCloneURL(t.Context(), user2, "user2", "repo1")
 
 	req := NewRequest(t, "GET", "/user2/repo1")
 	resp := session.MakeRequest(t, req, http.StatusOK)
@@ -213,7 +215,6 @@ func testViewRepo1CloneLinkAuthorized(t *testing.T) {
 
 	link, exists = htmlDoc.doc.Find(".repo-clone-ssh").Attr("data-link")
 	assert.True(t, exists, "The template has changed")
-	sshURL := fmt.Sprintf("ssh://%s@%s:%d/user2/repo1.git", setting.SSH.User, setting.SSH.Domain, setting.SSH.Port)
 	assert.Equal(t, sshURL, link)
 
 	link, exists = htmlDoc.doc.Find(".repo-clone-tea").Attr("data-link")

@@ -665,6 +665,10 @@ func ComposeSSHCloneURL(ctx context.Context, doer *user_model.User, ownerName, r
 	sshUser := setting.SSH.User
 	sshDomain := setting.Config().Server.SSHDomain.Value(ctx)
 	sshPort := setting.Config().Server.SSHPort.Value(ctx)
+	portForURL := sshPort
+	if !setting.Config().Server.SSHShowPortInCloneURL.Value(ctx) {
+		portForURL = 22
+	}
 
 	if sshUser == "(DOER_USERNAME)" {
 		// Some users use SSH reverse-proxy and need to use the current signed-in username as the SSH user
@@ -679,8 +683,8 @@ func ComposeSSHCloneURL(ctx context.Context, doer *user_model.User, ownerName, r
 	}
 
 	// non-standard port, it must use full URI
-	if sshPort != 22 {
-		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(sshPort))
+	if portForURL != 22 {
+		sshHost := net.JoinHostPort(sshDomain, strconv.Itoa(portForURL))
 		return fmt.Sprintf("ssh://%s@%s/%s/%s.git", sshUser, sshHost, url.PathEscape(ownerName), url.PathEscape(repoName))
 	}
 

@@ -91,6 +91,7 @@ func initDefaultConfig() {
 			SSHPort: config.NewOption[int](ServerSSHPortDynKey).WithEmptyAsDefault().WithDefaultFunc(func() int {
 				return SSH.Port
 			}),
+			SSHShowPortInCloneURL: config.NewOption[bool](ServerSSHShowPortInCloneURLDynKey).WithDefaultSimple(false),
 		},
 	}
 }

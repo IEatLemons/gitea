@@ -142,6 +142,18 @@ func TestInstance(t *testing.T) {
 
 			ctx := t.Context()
 			u := repo_model.ComposeSSHCloneURL(ctx, nil, "owner", "repo")
+			assert.Contains(t, u, "ssh.example.test")
+			assert.NotContains(t, u, ":8888")
+			assert.Contains(t, u, "owner/repo.git")
+		})
+
+		t.Run("SSHCloneOverridesShowPort", func(t *testing.T) {
+			defer mockSystemConfig(t, setting.Config().Server.SSHDomain, "ssh.example.test")()
+			defer mockSystemConfig(t, setting.Config().Server.SSHPort, 8888)()
+			defer mockSystemConfig(t, setting.Config().Server.SSHShowPortInCloneURL, true)()
+
+			ctx := t.Context()
+			u := repo_model.ComposeSSHCloneURL(ctx, nil, "owner", "repo")
 			assert.Contains(t, u, "ssh.example.test:8888")
 			assert.Contains(t, u, "owner/repo.git")
 		})

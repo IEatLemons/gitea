@@ -31,6 +31,20 @@ func (composeSSHTestDynGetter) GetRevision(context.Context) int { return 0 }
 
 func (composeSSHTestDynGetter) InvalidateCache() {}
 
+// composeSSHShowPortInURLDynGetter forces [setting.ServerSSHShowPortInCloneURLDynKey] for tests.
+type composeSSHShowPortInURLDynGetter struct{}
+
+func (composeSSHShowPortInURLDynGetter) GetValue(_ context.Context, key string) (string, bool) {
+	if key == setting.ServerSSHShowPortInCloneURLDynKey {
+		return "true", true
+	}
+	return "", false
+}
+
+func (composeSSHShowPortInURLDynGetter) GetRevision(context.Context) int { return 0 }
+
+func (composeSSHShowPortInURLDynGetter) InvalidateCache() {}
+
 var (
 	countRepospts        = CountRepositoryOptions{OwnerID: 10}
 	countReposptsPublic  = CountRepositoryOptions{OwnerID: 10, Private: optional.Some(false)}
@@ -204,12 +218,12 @@ func TestComposeSSHCloneURL(t *testing.T) {
 	assert.Equal(t, "git@domain:user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 	setting.Repository.UseCompatSSHURI = true
 	assert.Equal(t, "ssh://git@domain/user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
-	// test SSH_DOMAIN while use non-standard SSH port
+	// test SSH_DOMAIN while use non-standard SSH port (hide port in URL by default)
 	setting.SSH.Port = 123
 	setting.Repository.UseCompatSSHURI = false
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	assert.Equal(t, "git@domain:user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 	setting.Repository.UseCompatSSHURI = true
-	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	assert.Equal(t, "ssh://git@domain/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 
 	// test IPv6 SSH_DOMAIN
 	setting.Repository.UseCompatSSHURI = false
@@ -217,13 +231,30 @@ func TestComposeSSHCloneURL(t *testing.T) {
 	setting.SSH.Port = 22
 	assert.Equal(t, "git@[::1]:user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 	setting.SSH.Port = 123
-	assert.Equal(t, "ssh://git@[::1]:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	assert.Equal(t, "git@[::1]:user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
 
 	setting.SSH.User = "(DOER_USERNAME)"
 	setting.SSH.Domain = "domain"
 	setting.SSH.Port = 22
 	assert.Equal(t, "doer@domain:user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 	setting.SSH.Port = 123
+	assert.Equal(t, "doer@domain:user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
+
+	// with "show port in clone URL" enabled, non-standard ports appear in the URL
+	config.SetDynGetter(composeSSHShowPortInURLDynGetter{})
+	config.GetDynGetter().InvalidateCache()
+	setting.SSH.User = "git"
+	setting.SSH.Domain = "domain"
+	setting.SSH.Port = 123
+	setting.Repository.UseCompatSSHURI = false
+	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	setting.Repository.UseCompatSSHURI = true
+	assert.Equal(t, "ssh://git@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	setting.Repository.UseCompatSSHURI = false
+	setting.SSH.Domain = "::1"
+	assert.Equal(t, "ssh://git@[::1]:123/user/repo.git", ComposeSSHCloneURL(ctx, nil, "user", "repo"))
+	setting.SSH.User = "(DOER_USERNAME)"
+	setting.SSH.Domain = "domain"
 	assert.Equal(t, "ssh://doer@domain:123/user/repo.git", ComposeSSHCloneURL(ctx, &user_model.User{Name: "doer"}, "user", "repo"))
 }
 

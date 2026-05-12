@@ -244,6 +244,11 @@ func validateServerPublicURLConfig(dynKey, input string) error {
 		if p < 1 || p > 65535 {
 			return util.NewInvalidArgumentErrorf("SSH port must be between 1 and 65535")
 		}
+	case setting.ServerSSHShowPortInCloneURLDynKey:
+		var b bool
+		if err := json.Unmarshal([]byte(input), &b); err != nil {
+			return util.NewInvalidArgumentErrorf("invalid value for %s", dynKey)
+		}
 	}
 	return nil
 }
