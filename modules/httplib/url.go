@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"code.gitea.io/gitea/modules/setting"
+	"code.gitea.io/gitea/modules/setting/config"
 	"code.gitea.io/gitea/modules/util"
 )
 
@@ -72,6 +73,9 @@ func parseForwardedProtoValue(val string) (string, bool) {
 }
 
 func guessPublicRootURLOverride(ctx context.Context) string {
+	if config.GetDynGetter() == nil {
+		return ""
+	}
 	raw := strings.TrimSpace(setting.Config().Server.RootURL.Value(ctx))
 	if raw == "" {
 		return ""

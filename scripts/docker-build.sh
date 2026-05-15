@@ -8,6 +8,9 @@
 # 用法:
 #   ./scripts/docker-build.sh              # VERSION patch +1 后构建
 #   ./scripts/docker-build.sh 1.0.7       # 指定版本（可写 V1.0.7）
+#   ./scripts/docker-build.sh --check      # 仅校验 Dockerfile（不递增、不写 VERSION、不推送；展示当前 VERSION）
+#   ./scripts/docker-build.sh --check 1.0.7 # 仍可带版本文案仅用于日志展示，非 semver 则回退为读 VERSION 文件
+#   ./scripts/docker-build.sh all          # 「all」等非法版本语义同「无参数」：读 VERSION 并 patch +1
 # 环境变量:
 #   DOCKER_REGISTRY          默认 ieatlemon
 #   DOCKER_IMAGE_NAME        默认 gitea（完整镜像为 ${REGISTRY}/${NAME}）
@@ -47,23 +50,62 @@ bump_patch() {
   echo "$major.$minor.$((patch + 1))"
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  sed -n '2,12p' "$0" | sed 's/^# //'
-  exit 0
+CHECK=0
+POS=()
+for a in "$@"; do
+  case "$a" in
+    -h|--help)
+      sed -n '2,20p' "$0" | sed 's/^# //'
+      exit 0
+      ;;
+    --check)
+      CHECK=1
+      ;;
+    *)
+      POS+=("$a")
+      ;;
+  esac
+done
+set -- "${POS[@]}"
+
+NEW_VERSION=""
+if [[ $# -ge 1 ]]; then
+  RAW_V="$1"
+  shift
+  CAND_V="$(normalize_version "$RAW_V")"
+  if [[ "$CAND_V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    NEW_VERSION="$CAND_V"
+  else
+    # 首轮参数不是 semver（如误传子命令名）视为「未指定版本」
+    if ((CHECK)); then
+      NEW_VERSION="$(read_version_file)"
+      echo "warning: \"$RAW_V\" 非 MAJOR.MINOR.PATCH；（--check）使用 VERSION 当前值: ${NEW_VERSION}" >&2
+    else
+      echo "warning: \"$RAW_V\" 非 MAJOR.MINOR.PATCH，已忽略；将读取 VERSION 并 patch +1" >&2
+      NEW_VERSION="$(bump_patch "$(read_version_file)")"
+    fi
+  fi
+else
+  if ((CHECK)); then
+    NEW_VERSION="$(read_version_file)"
+  else
+    NEW_VERSION="$(bump_patch "$(read_version_file)")"
+  fi
 fi
 
 if [[ $# -ge 1 ]]; then
-  NEW_VERSION="$(normalize_version "$1")"
-else
-  NEW_VERSION="$(bump_patch "$(read_version_file)")"
+  echo "warning: 忽略多余参数: $*" >&2
 fi
 
-if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if ((CHECK)); then
+  echo "=> --check：仅校验 Dockerfile（不写入 VERSION、不推送、不递增版本）"
+  echo "=> 参考 VERSION（仅展示）=${NEW_VERSION}"
+elif [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "error: 非法版本号: $NEW_VERSION" >&2
   exit 1
+else
+  printf '%s\n' "$NEW_VERSION" >"$VERSION_FILE"
 fi
-
-printf '%s\n' "$NEW_VERSION" >"$VERSION_FILE"
 
 REGISTRY="${DOCKER_REGISTRY:-ieatlemon}"
 IMAGE_NAME="${DOCKER_IMAGE_NAME:-gitea}"
@@ -84,14 +126,20 @@ if [[ "${DOCKER_TAG_LATEST:-1}" != "0" ]]; then
   TAG_ARGS+=(-t "$IMAGE_LATEST")
 fi
 
-echo "=> VERSION=${NEW_VERSION}（已写入 $VERSION_FILE）"
+if ((CHECK)); then
+  :
+else
+  echo "=> VERSION=${NEW_VERSION}（已写入 $VERSION_FILE）"
+fi
 if [[ "${DOCKER_PLATFORM_NATIVE:-0}" == "1" ]]; then
   echo "=> 目标平台: 本机（DOCKER_PLATFORM_NATIVE=1，未指定 --platform）"
 else
   echo "=> 目标平台: ${DOCKER_PLATFORM:-linux/amd64}"
 fi
 echo "=> Dockerfile: $DOCKER_FILE"
-if [[ "${DOCKER_TAG_LATEST:-1}" != "0" ]]; then
+if ((CHECK)); then
+  echo "=> docker build --check（无镜像 tag / 无推送）"
+elif [[ "${DOCKER_TAG_LATEST:-1}" != "0" ]]; then
   echo "=> 构建: $IMAGE 与 $IMAGE_LATEST"
 else
   echo "=> 构建: $IMAGE"
@@ -100,6 +148,15 @@ fi
 docker_build() {
   command docker build "$@"
 }
+
+if ((CHECK)); then
+  docker_build "${PLATFORM_ARGS[@]}" \
+    --check \
+    -f "$ROOT/$DOCKER_FILE" \
+    "$ROOT"
+  echo "=> Dockerfile 校验完成"
+  exit 0
+fi
 
 docker_build "${PLATFORM_ARGS[@]}" \
   -f "$ROOT/$DOCKER_FILE" \

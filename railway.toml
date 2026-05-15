@@ -4,7 +4,12 @@
 # - GITEA__server__HTTP_PORT = ${{PORT}}
 # - GITEA__server__ROOT_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}/
 #
-# Persistent volume: mount at container path /data (SQLite + repositories + config).
+# Persistent volume (required for Git data across redeploys):
+# - Create and attach a Railway Volume in the dashboard; mounts cannot be declared in this file.
+# - Mount path MUST be /data (matches Dockerfile VOLUME and docker template app.ini:
+#   APP_DATA_PATH=/data/gitea, [repository] ROOT=/data/git/repositories).
+# - Without this, redeploys replace the container filesystem and repos disappear while DB rows may remain
+#   ("unable to read Git data" / repo.broken_message). See contrib/railway/README.md.
 "$schema" = "https://railway.com/railway.schema.json"
 
 [build]

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"code.gitea.io/gitea/modules/setting"
+	"code.gitea.io/gitea/modules/setting/config"
 	"code.gitea.io/gitea/modules/test"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,22 @@ func TestGuessCurrentHostURL(t *testing.T) {
 		ctx = context.WithValue(t.Context(), RequestContextKey, &http.Request{Host: "req-host:3000", Header: headersWithProto})
 		assert.Equal(t, "http://cfg-host", GuessCurrentHostURL(ctx))
 	})
+}
+
+func TestGuessCurrentAppURLWithoutDynGetter(t *testing.T) {
+	prev := config.GetDynGetter()
+	config.SetDynGetter(nil)
+	t.Cleanup(func() { config.SetDynGetter(prev) })
+
+	defer test.MockVariableValue(&setting.AppURL, "http://cfg-host/sub/")()
+	defer test.MockVariableValue(&setting.AppSubURL, "/sub")()
+	defer test.MockVariableValue(&setting.PublicURLDetection, setting.PublicURLLegacy)()
+
+	ctx := t.Context()
+	assert.Equal(t, "http://cfg-host/sub/", GuessCurrentAppURL(ctx))
+
+	ctx = context.WithValue(ctx, RequestContextKey, &http.Request{Host: "req-host:3000"})
+	assert.Equal(t, "http://cfg-host/sub/", GuessCurrentAppURL(ctx))
 }
 
 func TestMakeAbsoluteURL(t *testing.T) {
