@@ -1,0 +1,12 @@
+<div id="git-graph-main" class="git-graph-main">
+	<div id="git-graph-scroll-area" class="git-graph-scroll-area">
+		<div id="git-graph-left">
+			<div class="rel-chunk" data-graph-page="{{.GraphPageIndex}}">
+				{{template "repo/graph/svgcontainer" .}}
+			</div>
+		</div>
+		{{template "repo/graph/commits" .}}
+	</div>
+</div>
+<div id="graph-scroll-sentinel" class="graph-scroll-sentinel" aria-hidden="true"></div>
+<div id="graph-loading-indicator" class="graph-loading-indicator tw-hidden" aria-hidden="true"></div>

@@ -191,6 +191,7 @@
 							<tr>
 								<th class="tw-w-2/5">{{ctx.Locale.Tr "repo.settings.mirror_settings.pushed_repository"}}</th>
 								<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.direction"}}</th>
+								<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches_column"}}</th>
 								<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.last_update"}}</th>
 								<th></th>
 							</tr>
@@ -200,6 +201,9 @@
 							<tr>
 								<td class="tw-break-anywhere">{{.RemoteAddress}}</td>
 								<td>{{ctx.Locale.Tr "repo.settings.mirror_settings.direction.push"}} ({{.Interval}})</td>
+								<td>
+									{{- if .MirrorBranches}}{{.MirrorBranches}}{{else}}{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches_all"}}{{end -}}
+								</td>
 								<td>
 									<span class="flex-text-block">
 										{{if .LastUpdateUnix}}
@@ -218,6 +222,13 @@
 										data-modal-push-mirror-edit-id="{{.ID}}"
 										data-modal-push-mirror-edit-interval="{{.Interval}}"
 										data-modal-push-mirror-edit-address="{{.RemoteAddress}}"
+										data-modal-push-mirror-edit-sync-on-commit.checked="{{if .SyncOnCommit}}true{{else}}false{{end}}"
+										data-modal-push-mirror-edit-deploy-stamp-enabled.checked="{{if .DeployStampEnabled}}true{{else}}false{{end}}"
+										data-modal-push-mirror-edit-branches="{{.DeployStampBranches}}"
+										data-modal-push-mirror-edit-mirror-branches="{{.MirrorBranches}}"
+										data-modal-push-mirror-edit-author-name="{{.DeployStampAuthorName}}"
+										data-modal-push-mirror-edit-author-email="{{.DeployStampAuthorEmail}}"
+										data-modal-push-mirror-edit-commit-message="{{.DeployStampCommitMessage}}"
 									>
 										{{svg "octicon-pencil" 14}}
 									</button>
@@ -235,12 +246,12 @@
 							</tr>
 							{{else}}
 							<tr>
-								<td>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.none"}}</td>
+								<td colspan="5">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.none"}}</td>
 							</tr>
 							{{end}}
 							{{if (not .DisableNewPushMirrors)}}
 								<tr>
-									<td colspan="4">
+									<td colspan="5">
 										<form class="ui form" method="post">
 											{{template "base/disable_form_autofill"}}
 											<input type="hidden" name="action" value="push-mirror-add">
@@ -261,6 +272,39 @@
 													<div class="inline field {{if .Err_PushMirrorAuth}}error{{end}}">
 														<label for="push_mirror_password">{{ctx.Locale.Tr "password"}}</label>
 														<input id="push_mirror_password" name="push_mirror_password" type="password" value="{{.push_mirror_password}}" autocomplete="off">
+													</div>
+												</div>
+											</details>
+											<div class="field {{if .Err_PushMirrorMirrorBranches}}error{{end}}">
+												<label for="push_mirror_mirror_branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches"}}</label>
+												<input id="push_mirror_mirror_branches" name="push_mirror_mirror_branches" value="{{.push_mirror_mirror_branches}}" placeholder="develop, main">
+												<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches_desc"}}</p>
+											</div>
+											<details class="ui optional field">
+												<summary class="tw-p-1">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_section"}}</summary>
+												<div class="tw-p-1">
+													<div class="inline field">
+														<div class="ui checkbox">
+															<input id="push_mirror_deploy_stamp_enabled" name="push_mirror_deploy_stamp_enabled" type="checkbox" {{if .push_mirror_deploy_stamp_enabled}}checked{{end}}>
+															<label for="push_mirror_deploy_stamp_enabled">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_enable"}}</label>
+														</div>
+													</div>
+													<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_description"}}</p>
+													<div class="field">
+														<label for="push_mirror_deploy_stamp_branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_branches"}}</label>
+														<input id="push_mirror_deploy_stamp_branches" name="push_mirror_deploy_stamp_branches" value="{{.push_mirror_deploy_stamp_branches}}" placeholder="develop, main">
+													</div>
+													<div class="inline field">
+														<label for="push_mirror_deploy_stamp_author_name">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_name"}}</label>
+														<input id="push_mirror_deploy_stamp_author_name" name="push_mirror_deploy_stamp_author_name" value="{{.push_mirror_deploy_stamp_author_name}}">
+													</div>
+													<div class="inline field">
+														<label for="push_mirror_deploy_stamp_author_email">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_email"}}</label>
+														<input id="push_mirror_deploy_stamp_author_email" name="push_mirror_deploy_stamp_author_email" type="email" value="{{.push_mirror_deploy_stamp_author_email}}">
+													</div>
+													<div class="field">
+														<label for="push_mirror_deploy_stamp_commit_message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message"}}</label>
+														<input id="push_mirror_deploy_stamp_commit_message" name="push_mirror_deploy_stamp_commit_message" value="{{.push_mirror_deploy_stamp_commit_message}}" placeholder="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message_placeholder"}}">
 													</div>
 												</div>
 											</details>

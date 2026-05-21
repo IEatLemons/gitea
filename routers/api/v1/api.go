@@ -1326,7 +1326,9 @@ func Routes() *web.Router {
 				m.Group("/push_mirrors", func() {
 					m.Combo("").Get(repo.ListPushMirrors).
 						Post(mustNotBeArchived, bind(api.CreatePushMirrorOption{}), repo.AddPushMirror)
+					m.Get("/{name}/sync_tasks", mustNotBeArchived, repo.ListPushMirrorSyncTasks)
 					m.Combo("/{name}").
+						Patch(mustNotBeArchived, bind(api.EditPushMirrorOption{}), repo.EditPushMirror).
 						Delete(mustNotBeArchived, repo.DeletePushMirrorByRemoteName).
 						Get(repo.GetPushMirrorByName)
 				}, reqAdmin(), reqToken())

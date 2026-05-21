@@ -14,13 +14,21 @@ import (
 func ToPushMirror(ctx context.Context, pm *repo_model.PushMirror) (*api.PushMirror, error) {
 	repo := pm.GetRepository(ctx)
 	return &api.PushMirror{
-		RepoName:       repo.Name,
-		RemoteName:     pm.RemoteName,
-		RemoteAddress:  pm.RemoteAddress,
-		CreatedUnix:    pm.CreatedUnix.AsTime(),
-		LastUpdateUnix: pm.LastUpdateUnix.AsTimePtr(),
-		LastError:      pm.LastError,
-		Interval:       pm.Interval.String(),
-		SyncOnCommit:   pm.SyncOnCommit,
+		RepoName:                 repo.Name,
+		RemoteName:               pm.RemoteName,
+		RemoteAddress:            pm.RemoteAddress,
+		CreatedUnix:              pm.CreatedUnix.AsTime(),
+		LastUpdateUnix:           pm.LastUpdateUnix.AsTimePtr(),
+		LastError:                pm.LastError,
+		Interval:                 pm.Interval.String(),
+		SyncOnCommit:             pm.SyncOnCommit,
+		DeployStampEnabled:       pm.DeployStampEnabled,
+		DeployStampBranches:      pm.DeployStampBranches,
+		DeployStampAuthorName:    pm.DeployStampAuthorName,
+		DeployStampAuthorEmail:   pm.DeployStampAuthorEmail,
+		DeployStampCommitMessage: pm.DeployStampCommitMessage,
+		MirrorBranches:           pm.MirrorBranches,
+		AuthType:                 pm.AuthType,
+		SSHHostKeyPolicy:         pm.SSHHostKeyPolicy,
 	}, nil
 }

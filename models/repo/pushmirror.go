@@ -24,11 +24,28 @@ type PushMirror struct {
 	RemoteName    string
 	RemoteAddress string `xorm:"VARCHAR(2048)"`
 
+	// MirrorBranches comma-separated branch short names; empty means push all heads and tags (legacy behavior).
+	MirrorBranches string `xorm:"TEXT"`
+
 	SyncOnCommit   bool `xorm:"NOT NULL DEFAULT true"`
 	Interval       time.Duration
 	CreatedUnix    timeutil.TimeStamp `xorm:"created"`
 	LastUpdateUnix timeutil.TimeStamp `xorm:"INDEX last_update"`
 	LastError      string             `xorm:"text"`
+
+	// AuthType is MirrorAuthHTTPS or MirrorAuthSSH; SSH uses encrypted deploy key below.
+	AuthType                string `xorm:"VARCHAR(16) NOT NULL DEFAULT 'https'"`
+	SSHPrivateKeyEncrypted  string `xorm:"TEXT"`
+	SSHHostKeyPolicy        string `xorm:"VARCHAR(32) NOT NULL DEFAULT 'fingerprint'"`
+	SSHKnownHostFingerprint string `xorm:"TEXT"`
+
+	// DeployStamp: before push-mirror sync, add an empty commit on configured branches
+	// so the tip uses a trusted Author/Committer identity (for downstream CI).
+	DeployStampEnabled       bool   `xorm:"NOT NULL DEFAULT false"`
+	DeployStampBranches      string `xorm:"TEXT"` // comma-separated branch names
+	DeployStampAuthorName    string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
+	DeployStampAuthorEmail   string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
+	DeployStampCommitMessage string `xorm:"VARCHAR(512) NOT NULL DEFAULT 'chore: deploy stamp'"`
 }
 
 type PushMirrorOptions struct {
@@ -87,11 +104,27 @@ func UpdatePushMirrorInterval(ctx context.Context, m *PushMirror) error {
 }
 
 func DeletePushMirrors(ctx context.Context, opts PushMirrorOptions) error {
-	if opts.RepoID > 0 {
-		_, err := db.Delete[PushMirror](ctx, opts)
-		return err
+	if opts.RepoID <= 0 {
+		return util.NewInvalidArgumentErrorf("repoID required and must be set")
 	}
-	return util.NewInvalidArgumentErrorf("repoID required and must be set")
+	if opts.ID != 0 {
+		if err := DeleteMirrorSyncTasksForPushMirror(ctx, opts.RepoID, opts.ID); err != nil {
+			return err
+		}
+	} else if opts.RemoteName != "" {
+		var pm PushMirror
+		has, err := db.GetEngine(ctx).Where("repo_id = ? AND remote_name = ?", opts.RepoID, opts.RemoteName).Get(&pm)
+		if err != nil {
+			return err
+		}
+		if has {
+			if err := DeleteMirrorSyncTasksForPushMirror(ctx, opts.RepoID, pm.ID); err != nil {
+				return err
+			}
+		}
+	}
+	_, err := db.Delete[PushMirror](ctx, opts)
+	return err
 }
 
 type findPushMirrorOptions struct {

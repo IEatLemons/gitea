@@ -405,6 +405,9 @@ func prepareMigrationTasks() []*migration {
 		newMigration(328, "Add TokenPermissions column to ActionRunJob", v1_26.AddTokenPermissionsToActionRunJob),
 		newMigration(329, "Add unique constraint for user badge", v1_26.AddUniqueIndexForUserBadge),
 		newMigration(330, "Add name column to webhook", v1_26.AddNameToWebhook),
+		newMigration(331, "Add deploy stamp columns to push_mirror", v1_26.AddDeployStampToPushMirror),
+		newMigration(332, "Add mirror_branches column to push_mirror", v1_26.AddMirrorBranchesToPushMirror),
+		newMigration(333, "Add SSH mirror auth and mirror_sync_task table", v1_26.AddSSHCredentialsAndMirrorSyncTask),
 	}
 	return preparedMigrations
 }

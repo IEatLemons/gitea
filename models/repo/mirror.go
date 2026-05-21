@@ -32,6 +32,14 @@ type Mirror struct {
 	LFSEndpoint string `xorm:"lfs_endpoint TEXT"`
 
 	RemoteAddress string `xorm:"VARCHAR(2048)"`
+
+	// AuthType is MirrorAuthHTTPS or MirrorAuthSSH; SSH uses encrypted deploy key below.
+	AuthType                string `xorm:"VARCHAR(16) NOT NULL DEFAULT 'https'"`
+	SSHPrivateKeyEncrypted  string `xorm:"TEXT"`
+	SSHHostKeyPolicy        string `xorm:"VARCHAR(32) NOT NULL DEFAULT 'fingerprint'"`
+	SSHKnownHostFingerprint string `xorm:"TEXT"`
+
+	LastError string `xorm:"TEXT"`
 }
 
 func init() {

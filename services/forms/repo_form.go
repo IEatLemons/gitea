@@ -98,14 +98,30 @@ type RepoSettingForm struct {
 	MirrorPassword         string
 	LFS                    bool   `form:"mirror_lfs"`
 	LFSEndpoint            string `form:"mirror_lfs_endpoint"`
+	MirrorAuthType         string
+	MirrorSSHPrivateKey    string
+	MirrorSSHHostKeyPolicy string
+	MirrorSSHKnownHostsLine string
 	PushMirrorID           int64
 	PushMirrorAddress      string
 	PushMirrorUsername     string
 	PushMirrorPassword     string
 	PushMirrorSyncOnCommit bool
 	PushMirrorInterval     string
-	Template               bool
-	EnablePrune            bool
+	// Push mirror deploy stamp (trusted commit identity before mirror push)
+	PushMirrorDeployStampEnabled       bool
+	PushMirrorDeployStampBranches      string
+	PushMirrorDeployStampAuthorName    string
+	PushMirrorDeployStampAuthorEmail   string
+	PushMirrorDeployStampCommitMessage string
+	PushMirrorMirrorBranches           string
+	PushMirrorAuthType                 string
+	PushMirrorSSHPrivateKey            string
+	PushMirrorSSHHostKeyPolicy         string
+	PushMirrorSSHKnownHostsLine        string
+	MirrorSyncTaskUUID                 string
+	Template                           bool
+	EnablePrune                        bool
 
 	// Advanced settings
 	EnableCode bool

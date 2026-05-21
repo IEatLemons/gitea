@@ -182,7 +182,7 @@ func testScheduleUpdateMirrorSync(t *testing.T) {
 		assert.NoError(t, err)
 
 		// sync
-		ok := mirror_service.SyncPullMirror(t.Context(), mirrorRepo.ID)
+		ok := mirror_service.SyncPullMirror(t.Context(), mirrorRepo.ID, "")
 		assert.True(t, ok)
 		mirrorRepoDefaultBranch, err := git_model.GetBranch(t.Context(), mirrorRepo.ID, mirrorRepo.DefaultBranch)
 		assert.NoError(t, err)

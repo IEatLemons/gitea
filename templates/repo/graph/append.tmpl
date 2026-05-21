@@ -1,0 +1,8 @@
+<div class="graph-load-more-chunk" data-graph-has-next="{{.GraphHasNext}}" data-graph-next-page="{{.GraphNextPage}}">
+	<div class="rel-chunk" data-graph-page="{{.GraphPageIndex}}">
+		{{template "repo/graph/svgcontainer" .}}
+	</div>
+	<ul class="graph-chunk-rev-list tw-hidden" aria-hidden="true">
+		{{template "repo/graph/commit_items" .}}
+	</ul>
+</div>

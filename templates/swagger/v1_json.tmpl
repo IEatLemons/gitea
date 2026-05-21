@@ -15461,6 +15461,60 @@
             "$ref": "#/responses/notFound"
           }
         }
+      },
+      "patch": {
+        "consumes": [
+          "application/json"
+        ],
+        "tags": [
+          "repository"
+        ],
+        "summary": "Update a push mirror",
+        "operationId": "repoEditPushMirror",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "owner of the repo",
+            "name": "owner",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "name of the repo",
+            "name": "repo",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "remote name of push mirror",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/EditPushMirrorOption"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/definitions/PushMirror"
+          },
+          "400": {
+            "$ref": "#/responses/error"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "404": {
+            "$ref": "#/responses/notFound"
+          }
+        }
       }
     },
     "/repos/{owner}/{repo}/raw/{filepath}": {
@@ -23951,10 +24005,37 @@
       "type": "object",
       "title": "CreatePushMirrorOption represents need information to create a push mirror of a repository.",
       "properties": {
+        "deploy_stamp_author_email": {
+          "type": "string",
+          "x-go-name": "DeployStampAuthorEmail"
+        },
+        "deploy_stamp_author_name": {
+          "type": "string",
+          "x-go-name": "DeployStampAuthorName"
+        },
+        "deploy_stamp_branches": {
+          "description": "comma-separated branch names",
+          "type": "string",
+          "x-go-name": "DeployStampBranches"
+        },
+        "deploy_stamp_commit_message": {
+          "type": "string",
+          "x-go-name": "DeployStampCommitMessage"
+        },
+        "deploy_stamp_enabled": {
+          "description": "add trusted-identity empty commit before mirror push on listed branches",
+          "type": "boolean",
+          "x-go-name": "DeployStampEnabled"
+        },
         "interval": {
           "description": "The sync interval for automatic updates",
           "type": "string",
           "x-go-name": "Interval"
+        },
+        "mirror_branches": {
+          "description": "Comma-separated branch names; empty mirrors all branches and tags.",
+          "type": "string",
+          "x-go-name": "MirrorBranches"
         },
         "remote_address": {
           "description": "The remote repository URL to push to",
@@ -28158,6 +28239,26 @@
           "format": "date-time",
           "x-go-name": "CreatedUnix"
         },
+        "deploy_stamp_author_email": {
+          "type": "string",
+          "x-go-name": "DeployStampAuthorEmail"
+        },
+        "deploy_stamp_author_name": {
+          "type": "string",
+          "x-go-name": "DeployStampAuthorName"
+        },
+        "deploy_stamp_branches": {
+          "type": "string",
+          "x-go-name": "DeployStampBranches"
+        },
+        "deploy_stamp_commit_message": {
+          "type": "string",
+          "x-go-name": "DeployStampCommitMessage"
+        },
+        "deploy_stamp_enabled": {
+          "type": "boolean",
+          "x-go-name": "DeployStampEnabled"
+        },
         "interval": {
           "description": "The sync interval for automatic updates",
           "type": "string",
@@ -28172,6 +28273,10 @@
           "type": "string",
           "format": "date-time",
           "x-go-name": "LastUpdateUnix"
+        },
+        "mirror_branches": {
+          "type": "string",
+          "x-go-name": "MirrorBranches"
         },
         "remote_address": {
           "description": "The remote repository URL being mirrored to",

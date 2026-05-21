@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	repo_model "code.gitea.io/gitea/models/repo"
 	"code.gitea.io/gitea/models/unittest"
 	user_model "code.gitea.io/gitea/models/user"
+	"code.gitea.io/gitea/modules/git/gitcmd"
 	"code.gitea.io/gitea/modules/gitrepo"
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/services/migrations"
@@ -56,7 +59,7 @@ func testMirrorPush(t *testing.T, u *url.URL) {
 	assert.NoError(t, err)
 	assert.Len(t, mirrors, 1)
 
-	ok := mirror_service.SyncPushMirror(t.Context(), mirrors[0].ID)
+	ok := mirror_service.SyncPushMirror(t.Context(), mirrors[0].ID, "")
 	assert.True(t, ok)
 
 	srcGitRepo, err := gitrepo.OpenRepository(t.Context(), srcRepo)
@@ -113,7 +116,7 @@ func testMirrorPushWikiDefaultBranchMismatch(t *testing.T, u *url.URL) {
 	assert.NoError(t, err)
 	assert.Len(t, mirrors, 1)
 
-	ok := mirror_service.SyncPushMirror(t.Context(), mirrors[0].ID)
+	ok := mirror_service.SyncPushMirror(t.Context(), mirrors[0].ID, "")
 	assert.True(t, ok)
 }
 
@@ -184,4 +187,52 @@ func TestRepoSettingPushMirrorUpdate(t *testing.T) {
 	// delete repo2 push mirror
 	assert.True(t, doRemovePushMirror(t, session, "user2", "repo2", repo2PushMirrorID))
 	unittest.AssertNotExistsBean(t, &repo_model.PushMirror{ID: repo2PushMirrorID})
+}
+
+func TestPushMirrorBranchRestriction(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+	onGiteaRun(t, testPushMirrorBranchRestriction)
+}
+
+func testPushMirrorBranchRestriction(t *testing.T, u *url.URL) {
+	setting.Migrations.AllowLocalNetworks = true
+	assert.NoError(t, migrations.Init())
+
+	_ = db.TruncateBeans(t.Context(), &repo_model.PushMirror{})
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	srcRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+
+	mirrorRepo, err := repo_service.CreateRepositoryDirectly(t.Context(), user, user, repo_service.CreateRepoOptions{
+		Name: "test-push-mirror-branches",
+	}, true)
+	assert.NoError(t, err)
+
+	session := loginUser(t, user.Name)
+	pushMirrorURL := fmt.Sprintf("%s%s/%s", u.String(), url.PathEscape(user.Name), url.PathEscape(mirrorRepo.Name))
+	req := NewRequestWithValues(t, "POST", fmt.Sprintf("/%s/%s/settings", url.PathEscape(user.Name), url.PathEscape(srcRepo.Name)), map[string]string{
+		"action":                      "push-mirror-add",
+		"push_mirror_address":         pushMirrorURL,
+		"push_mirror_username":        user.LowerName,
+		"push_mirror_password":        userPassword,
+		"push_mirror_interval":        "0",
+		"push_mirror_mirror_branches": "master",
+	})
+	session.MakeRequest(t, req, http.StatusSeeOther)
+	flashMsg := session.GetCookieFlashMessage()
+	assert.NotEmpty(t, flashMsg.SuccessMsg)
+
+	mirrors, _, err := repo_model.GetPushMirrorsByRepoID(t.Context(), srcRepo.ID, db.ListOptions{})
+	assert.NoError(t, err)
+	assert.Len(t, mirrors, 1)
+	pm := mirrors[0]
+
+	repoPath := filepath.Join(setting.RepoRootPath, filepath.FromSlash(srcRepo.RelativePath()))
+	stdout, _, runErr := gitcmd.NewCommand("config", "--get-all").AddDynamicArguments("remote." + pm.RemoteName + ".push").WithDir(repoPath).RunStdString(t.Context())
+	assert.NoError(t, runErr)
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	assert.Len(t, lines, 1)
+	assert.Contains(t, lines[0], "refs/heads/master")
+	assert.NotContains(t, lines[0], "refs/tags")
+
+	assert.True(t, doRemovePushMirror(t, session, user.Name, srcRepo.Name, pm.ID))
 }

@@ -6,12 +6,14 @@ package repo
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"code.gitea.io/gitea/models/db"
 	repo_model "code.gitea.io/gitea/models/repo"
 	"code.gitea.io/gitea/models/unit"
 	"code.gitea.io/gitea/modules/git"
+	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/setting"
 	api "code.gitea.io/gitea/modules/structs"
 	"code.gitea.io/gitea/modules/util"
@@ -69,7 +71,7 @@ func MirrorSync(ctx *context.APIContext) {
 		return
 	}
 
-	mirror_service.AddPullMirrorToQueue(repo.ID)
+	mirror_service.AddPullMirrorToQueue(repo.ID, repo_model.MirrorSyncTriggerManual)
 
 	ctx.Status(http.StatusOK)
 }
@@ -113,7 +115,7 @@ func PushMirrorSync(ctx *context.APIContext) {
 		return
 	}
 	for _, mirror := range pushMirrors {
-		ok := mirror_service.SyncPushMirror(ctx, mirror.ID)
+		ok := mirror_service.SyncPushMirror(ctx, mirror.ID, repo_model.MirrorSyncTriggerManual)
 		if !ok {
 			ctx.APIErrorInternal(errors.New("error occurred when syncing push mirror " + mirror.RemoteName))
 			return
@@ -342,13 +344,29 @@ func CreatePushMirror(ctx *context.APIContext, mirrorOption *api.CreatePushMirro
 		return
 	}
 
-	address, err := git.ParseRemoteAddr(mirrorOption.RemoteAddress, mirrorOption.RemoteUsername, mirrorOption.RemotePassword)
-	if err == nil {
-		err = migrations.IsMigrateURLAllowed(address, ctx.ContextUser)
-	}
-	if err != nil {
-		HandleRemoteAddressError(ctx, err)
-		return
+	authType := mirror_service.NormalizeMirrorAuthType(mirrorOption.AuthType)
+	policy := mirror_service.NormalizeSSHHostKeyPolicy(mirrorOption.SSHHostKeyPolicy)
+
+	var address string
+	if authType == repo_model.MirrorAuthSSH {
+		address = strings.TrimSpace(mirrorOption.RemoteAddress)
+		if err := migrations.IsMigrateURLAllowed(address, ctx.ContextUser); err != nil {
+			HandleRemoteAddressError(ctx, err)
+			return
+		}
+		if err := mirror_service.ValidateSSHMirrorFields(policy, mirrorOption.SSHKnownHostFingerprint, mirrorOption.SSHPrivateKey, ""); err != nil {
+			ctx.APIError(http.StatusBadRequest, err)
+			return
+		}
+	} else {
+		address, err = git.ParseRemoteAddr(mirrorOption.RemoteAddress, mirrorOption.RemoteUsername, mirrorOption.RemotePassword)
+		if err == nil {
+			err = migrations.IsMigrateURLAllowed(address, ctx.ContextUser)
+		}
+		if err != nil {
+			HandleRemoteAddressError(ctx, err)
+			return
+		}
 	}
 
 	remoteSuffix, err := util.CryptoRandomString(10)
@@ -357,20 +375,52 @@ func CreatePushMirror(ctx *context.APIContext, mirrorOption *api.CreatePushMirro
 		return
 	}
 
-	remoteAddress, err := util.SanitizeURL(mirrorOption.RemoteAddress)
+	remoteAddress, err := giturl.StripCredentialsForStorage(mirrorOption.RemoteAddress)
 	if err != nil {
 		ctx.APIErrorInternal(err)
 		return
 	}
 
-	pushMirror := &repo_model.PushMirror{
-		RepoID:        repo.ID,
-		Repo:          repo,
-		RemoteName:    "remote_mirror_" + remoteSuffix,
-		Interval:      interval,
-		SyncOnCommit:  mirrorOption.SyncOnCommit,
-		RemoteAddress: remoteAddress,
+	var encKey string
+	if authType == repo_model.MirrorAuthSSH {
+		encKey, err = mirror_service.EncryptSSHPrivateKeyOrEmpty(mirrorOption.SSHPrivateKey)
+		if err != nil {
+			ctx.APIErrorInternal(err)
+			return
+		}
 	}
+
+	mirrorBranchList, err := mirror_service.ParseMirrorBranches(mirrorOption.MirrorBranches)
+	if err != nil {
+		ctx.APIError(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	pushMirror := &repo_model.PushMirror{
+		RepoID:                   repo.ID,
+		Repo:                     repo,
+		RemoteName:               "remote_mirror_" + remoteSuffix,
+		Interval:                 interval,
+		SyncOnCommit:             mirrorOption.SyncOnCommit,
+		RemoteAddress:            remoteAddress,
+		MirrorBranches:           mirror_service.JoinMirrorBranches(mirrorBranchList),
+		AuthType:                 authType,
+		SSHPrivateKeyEncrypted:   encKey,
+		SSHHostKeyPolicy:         policy,
+		SSHKnownHostFingerprint:  strings.TrimSpace(mirrorOption.SSHKnownHostFingerprint),
+	}
+	if authType != repo_model.MirrorAuthSSH {
+		pushMirror.SSHPrivateKeyEncrypted = ""
+		pushMirror.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
+		pushMirror.SSHKnownHostFingerprint = ""
+	}
+	mirror_service.ApplyDeployStampFromForm(pushMirror,
+		mirrorOption.DeployStampEnabled,
+		mirrorOption.DeployStampBranches,
+		mirrorOption.DeployStampAuthorName,
+		mirrorOption.DeployStampAuthorEmail,
+		mirrorOption.DeployStampCommitMessage,
+	)
 
 	if err = db.Insert(ctx, pushMirror); err != nil {
 		ctx.APIErrorInternal(err)
@@ -392,6 +442,161 @@ func CreatePushMirror(ctx *context.APIContext, mirrorOption *api.CreatePushMirro
 		return
 	}
 	ctx.JSON(http.StatusOK, m)
+}
+
+// EditPushMirror updates push mirror options including deploy stamp settings.
+func EditPushMirror(ctx *context.APIContext) {
+	// swagger:operation PATCH /repos/{owner}/{repo}/push_mirrors/{name} repository repoEditPushMirror
+	// ---
+	// summary: Update a push mirror
+	// consumes:
+	// - application/json
+	// parameters:
+	// - name: owner
+	//   in: path
+	//   description: owner of the repo
+	//   type: string
+	//   required: true
+	// - name: repo
+	//   in: path
+	//   description: name of the repo
+	//   type: string
+	//   required: true
+	// - name: name
+	//   in: path
+	//   description: remote name of push mirror
+	//   type: string
+	//   required: true
+	// - name: body
+	//   in: body
+	//   schema:
+	//     "$ref": "#/definitions/EditPushMirrorOption"
+	// responses:
+	//   "200":
+	//     "$ref": "#/definitions/PushMirror"
+	//   "400":
+	//     "$ref": "#/responses/error"
+	//   "403":
+	//     "$ref": "#/responses/forbidden"
+	//   "404":
+	//     "$ref": "#/responses/notFound"
+	if !setting.Mirror.Enabled {
+		ctx.APIError(http.StatusBadRequest, "Mirror feature is disabled")
+		return
+	}
+
+	remoteName := ctx.PathParam("name")
+	opt := web.GetForm(ctx).(*api.EditPushMirrorOption)
+
+	m, exist, err := db.Get[repo_model.PushMirror](ctx, repo_model.PushMirrorOptions{
+		RepoID:     ctx.Repo.Repository.ID,
+		RemoteName: remoteName,
+	}.ToConds())
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	} else if !exist {
+		ctx.APIError(http.StatusNotFound, nil)
+		return
+	}
+
+	oldMirrorBranches := m.MirrorBranches
+
+	if opt.Interval != nil {
+		interval, err := time.ParseDuration(*opt.Interval)
+		if err != nil || (interval != 0 && interval < setting.Mirror.MinInterval) {
+			ctx.APIError(http.StatusBadRequest, err)
+			return
+		}
+		m.Interval = interval
+	}
+	if opt.SyncOnCommit != nil {
+		m.SyncOnCommit = *opt.SyncOnCommit
+	}
+	if opt.DeployStampEnabled != nil {
+		m.DeployStampEnabled = *opt.DeployStampEnabled
+	}
+	if opt.DeployStampBranches != nil {
+		m.DeployStampBranches = strings.TrimSpace(*opt.DeployStampBranches)
+	}
+	if opt.DeployStampAuthorName != nil {
+		m.DeployStampAuthorName = strings.TrimSpace(*opt.DeployStampAuthorName)
+	}
+	if opt.DeployStampAuthorEmail != nil {
+		m.DeployStampAuthorEmail = strings.TrimSpace(*opt.DeployStampAuthorEmail)
+	}
+	if opt.DeployStampCommitMessage != nil {
+		m.DeployStampCommitMessage = mirror_service.NormalizeDeployStampCommitMessage(*opt.DeployStampCommitMessage)
+	}
+	if opt.MirrorBranches != nil {
+		branches, err := mirror_service.ParseMirrorBranches(*opt.MirrorBranches)
+		if err != nil {
+			ctx.APIError(http.StatusBadRequest, err.Error())
+			return
+		}
+		m.MirrorBranches = mirror_service.JoinMirrorBranches(branches)
+	}
+
+	if err := repo_model.UpdatePushMirror(ctx, m); err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	if m.MirrorBranches != oldMirrorBranches {
+		if err := mirror_service.RefreshPushMirrorRemote(ctx, m); err != nil {
+			ctx.APIErrorInternal(err)
+			return
+		}
+	}
+	resp, err := convert.ToPushMirror(ctx, m)
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	ctx.JSON(http.StatusOK, resp)
+}
+
+// ListPushMirrorSyncTasks returns recent sync attempts for a push mirror.
+func ListPushMirrorSyncTasks(ctx *context.APIContext) {
+	if !setting.Mirror.Enabled {
+		ctx.APIError(http.StatusBadRequest, "Mirror feature is disabled")
+		return
+	}
+	remoteName := ctx.PathParam("name")
+	m, exist, err := db.Get[repo_model.PushMirror](ctx, repo_model.PushMirrorOptions{
+		RepoID:     ctx.Repo.Repository.ID,
+		RemoteName: remoteName,
+	}.ToConds())
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	} else if !exist {
+		ctx.APIError(http.StatusNotFound, nil)
+		return
+	}
+	page := ctx.FormInt("page")
+	tasks, _, err := repo_model.GetMirrorSyncTasks(ctx, ctx.Repo.Repository.ID, repo_model.MirrorSyncTypePush, m.ID, page)
+	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	out := make([]*api.MirrorSyncTask, 0, len(tasks))
+	for _, t := range tasks {
+		item := &api.MirrorSyncTask{
+			UUID:         t.UUID,
+			MirrorType:   t.MirrorType,
+			TriggerType:  t.TriggerType,
+			IsSucceed:    t.IsSucceed,
+			Stdout:       t.Stdout,
+			Stderr:       t.Stderr,
+			ErrorMessage: t.ErrorMessage,
+			StartedUnix:  t.StartedUnix.AsTime(),
+		}
+		if t.FinishedUnix > 0 {
+			item.FinishedUnix = t.FinishedUnix.AsTime()
+		}
+		out = append(out, item)
+	}
+	ctx.JSON(http.StatusOK, out)
 }
 
 func HandleRemoteAddressError(ctx *context.APIContext, err error) {

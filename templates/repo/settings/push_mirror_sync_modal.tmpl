@@ -4,6 +4,7 @@
 	</div>
 	<form class="content ui form ignore-dirty" method="post">
 		<input type="hidden" name="action" value="push-mirror-update">
+		<input type="hidden" name="repo_name" value="{{.Repository.Name}}">
 		<input type="hidden" name="push_mirror_id" id="push-mirror-edit-id">
 		<div class="field">
 			<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.mirrored_repository"}}</label>
@@ -12,6 +13,46 @@
 		<div class="field">
 			<label for="push-mirror-edit-interval">{{ctx.Locale.Tr "repo.mirror_interval" .MinimumMirrorInterval}}</label>
 			<input id="push-mirror-edit-interval" name="push_mirror_interval" class="tw-w-auto">
+		</div>
+		<div class="field">
+			<div class="ui checkbox">
+				<input id="push-mirror-edit-sync-on-commit" name="push_mirror_sync_on_commit" type="checkbox">
+				<label for="push-mirror-edit-sync-on-commit">{{ctx.Locale.Tr "repo.mirror_sync_on_commit"}}</label>
+			</div>
+		</div>
+		<div class="field">
+			<label for="push-mirror-edit-mirror-branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches"}}</label>
+			<input id="push-mirror-edit-mirror-branches" name="push_mirror_mirror_branches" class="tw-w-full">
+			<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.mirror_branches_desc"}}</p>
+		</div>
+		<div class="ui divider"></div>
+		<div class="field">
+			<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_section"}}</label>
+			<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_description"}}</p>
+			<div class="field">
+				<div class="ui checkbox">
+					<input id="push-mirror-edit-deploy-stamp-enabled" name="push_mirror_deploy_stamp_enabled" type="checkbox">
+					<label for="push-mirror-edit-deploy-stamp-enabled">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_enable"}}</label>
+				</div>
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_branches"}}</label>
+				<input id="push-mirror-edit-branches" name="push_mirror_deploy_stamp_branches" class="tw-w-full">
+			</div>
+			<div class="two fields">
+				<div class="field">
+					<label for="push-mirror-edit-author-name">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_name"}}</label>
+					<input id="push-mirror-edit-author-name" name="push_mirror_deploy_stamp_author_name">
+				</div>
+				<div class="field">
+					<label for="push-mirror-edit-author-email">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_email"}}</label>
+					<input id="push-mirror-edit-author-email" name="push_mirror_deploy_stamp_author_email" type="email">
+				</div>
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-commit-message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message"}}</label>
+				<input id="push-mirror-edit-commit-message" name="push_mirror_deploy_stamp_commit_message">
+			</div>
 		</div>
 		<div class="actions">
 			<button class="ui small basic cancel button">

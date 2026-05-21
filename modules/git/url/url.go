@@ -30,6 +30,16 @@ type GitURL struct {
 	extraMark int // 0: standard URL with scheme, 1: scp short syntax (no scheme), 2: file path with no prefix
 }
 
+// IsSCPForm reports git@host:path SCP-like syntax.
+func (u *GitURL) IsSCPForm() bool {
+	return u.extraMark == 1
+}
+
+// IsBareLocalPath reports a path string without a URL scheme.
+func (u *GitURL) IsBareLocalPath() bool {
+	return u.extraMark == 2
+}
+
 // String returns the URL's string
 func (u *GitURL) String() string {
 	switch u.extraMark {
@@ -95,6 +105,19 @@ func ParseGitURL(remote string) (*GitURL, error) {
 		},
 		extraMark: 2,
 	}, nil
+}
+
+// StripCredentialsForStorage returns a display-safe remote URL (HTTP(S) userinfo removed).
+func StripCredentialsForStorage(remote string) (string, error) {
+	gu, err := ParseGitURL(strings.TrimSpace(remote))
+	if err != nil {
+		return "", err
+	}
+	if gu.URL != nil && !gu.IsSCPForm() &&
+		(strings.EqualFold(gu.Scheme, "http") || strings.EqualFold(gu.Scheme, "https")) {
+		gu.User = nil
+	}
+	return gu.String(), nil
 }
 
 type RepositoryURL struct {

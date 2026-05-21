@@ -16,6 +16,7 @@ import (
 	unit_model "code.gitea.io/gitea/models/unit"
 	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/git"
+	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/gitrepo"
 	"code.gitea.io/gitea/modules/indexer/code"
 	issue_indexer "code.gitea.io/gitea/modules/indexer/issues"
@@ -90,6 +91,30 @@ func SettingsCtxData(ctx *context.Context) {
 	}
 	ctx.Data["PushMirrors"] = pushMirrors
 
+	ctx.Data["MirrorSyncHistoryLimit"] = setting.Mirror.SyncHistoryLimit
+	pushMirrorSyncTasks := make(map[int64][]*repo_model.MirrorSyncTask)
+	for _, pm := range pushMirrors {
+		tasks, _, err := repo_model.GetMirrorSyncTasks(ctx, ctx.Repo.Repository.ID, repo_model.MirrorSyncTypePush, pm.ID, 1)
+		if err != nil {
+			ctx.ServerError("GetMirrorSyncTasks", err)
+			return
+		}
+		pushMirrorSyncTasks[pm.ID] = tasks
+	}
+	ctx.Data["PushMirrorSyncTasksByID"] = pushMirrorSyncTasks
+
+	ctx.Data["PullMirrorSyncTasks"] = []*repo_model.MirrorSyncTask(nil)
+	if ctx.Repo.Repository.IsMirror {
+		if _, err := repo_model.GetMirrorByRepoID(ctx, ctx.Repo.Repository.ID); err == nil {
+			tasks, _, err := repo_model.GetMirrorSyncTasks(ctx, ctx.Repo.Repository.ID, repo_model.MirrorSyncTypePull, 0, 1)
+			if err != nil {
+				ctx.ServerError("GetMirrorSyncTasks", err)
+				return
+			}
+			ctx.Data["PullMirrorSyncTasks"] = tasks
+		}
+	}
+
 	repo_router.PrepareBranchList(ctx)
 	if ctx.Written() {
 		return
@@ -122,6 +147,8 @@ func SettingsPost(ctx *context.Context) {
 		handleSettingsPostMirror(ctx)
 	case "mirror-sync":
 		handleSettingsPostMirrorSync(ctx)
+	case "mirror-sync-replay":
+		handleSettingsPostMirrorSyncReplay(ctx)
 	case "push-mirror-sync":
 		handleSettingsPostPushMirrorSync(ctx)
 	case "push-mirror-update":
@@ -259,24 +286,57 @@ func handleSettingsPostMirror(ctx *context.Context) {
 		return
 	}
 
-	u, err := gitrepo.GitRemoteGetURL(ctx, ctx.Repo.Repository, pullMirror.GetRemoteName())
-	if err != nil {
-		ctx.Data["Err_MirrorAddress"] = true
-		handleSettingRemoteAddrError(ctx, err, form)
-		return
-	}
-	if u.User != nil && form.MirrorPassword == "" && form.MirrorUsername == u.User.Username() {
-		form.MirrorPassword, _ = u.User.Password()
-	}
+	authType := mirror_service.NormalizeMirrorAuthType(form.MirrorAuthType)
+	policy := mirror_service.NormalizeSSHHostKeyPolicy(form.MirrorSSHHostKeyPolicy)
+	var address string
+	if authType == repo_model.MirrorAuthSSH {
+		address = strings.TrimSpace(form.MirrorAddress)
+		if err := migrations.IsMigrateURLAllowed(address, ctx.Doer); err != nil {
+			ctx.Data["Err_MirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
+		if err := mirror_service.ValidateSSHMirrorFields(policy, form.MirrorSSHKnownHostsLine, form.MirrorSSHPrivateKey, pullMirror.SSHPrivateKeyEncrypted); err != nil {
+			ctx.Data["Err_MirrorAuth"] = true
+			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+			return
+		}
+		enc, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(form.MirrorSSHPrivateKey)
+		if err != nil {
+			ctx.ServerError("EncryptSSHPrivateKey", err)
+			return
+		}
+		if enc != "" {
+			pullMirror.SSHPrivateKeyEncrypted = enc
+		}
+		pullMirror.AuthType = authType
+		pullMirror.SSHHostKeyPolicy = policy
+		pullMirror.SSHKnownHostFingerprint = strings.TrimSpace(form.MirrorSSHKnownHostsLine)
+	} else {
+		pullMirror.AuthType = authType
+		pullMirror.SSHPrivateKeyEncrypted = ""
+		pullMirror.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
+		pullMirror.SSHKnownHostFingerprint = ""
 
-	address, err := git.ParseRemoteAddr(form.MirrorAddress, form.MirrorUsername, form.MirrorPassword)
-	if err == nil {
-		err = migrations.IsMigrateURLAllowed(address, ctx.Doer)
-	}
-	if err != nil {
-		ctx.Data["Err_MirrorAddress"] = true
-		handleSettingRemoteAddrError(ctx, err, form)
-		return
+		u, err := gitrepo.GitRemoteGetURL(ctx, ctx.Repo.Repository, pullMirror.GetRemoteName())
+		if err != nil {
+			ctx.Data["Err_MirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
+		if u.User != nil && form.MirrorPassword == "" && form.MirrorUsername == u.User.Username() {
+			form.MirrorPassword, _ = u.User.Password()
+		}
+
+		address, err = git.ParseRemoteAddr(form.MirrorAddress, form.MirrorUsername, form.MirrorPassword)
+		if err == nil {
+			err = migrations.IsMigrateURLAllowed(address, ctx.Doer)
+		}
+		if err != nil {
+			ctx.Data["Err_MirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
 	}
 
 	if err := mirror_service.UpdateAddress(ctx, pullMirror, address); err != nil {
@@ -284,7 +344,7 @@ func handleSettingsPostMirror(ctx *context.Context) {
 		return
 	}
 
-	remoteAddress, err := util.SanitizeURL(form.MirrorAddress)
+	remoteAddress, err := giturl.StripCredentialsForStorage(form.MirrorAddress)
 	if err != nil {
 		ctx.Data["Err_MirrorAddress"] = true
 		handleSettingRemoteAddrError(ctx, err, form)
@@ -327,7 +387,7 @@ func handleSettingsPostMirrorSync(ctx *context.Context) {
 		return
 	}
 
-	mirror_service.AddPullMirrorToQueue(repo.ID)
+	mirror_service.AddPullMirrorToQueue(repo.ID, repo_model.MirrorSyncTriggerManual)
 
 	ctx.Flash.Info(ctx.Tr("repo.settings.pull_mirror_sync_in_progress", repo.OriginalURL))
 	ctx.Redirect(repo.Link() + "/settings")
@@ -348,9 +408,39 @@ func handleSettingsPostPushMirrorSync(ctx *context.Context) {
 		return
 	}
 
-	mirror_service.AddPushMirrorToQueue(m.ID)
+	mirror_service.AddPushMirrorToQueue(m.ID, repo_model.MirrorSyncTriggerManual)
 
 	ctx.Flash.Info(ctx.Tr("repo.settings.push_mirror_sync_in_progress", m.RemoteAddress))
+	ctx.Redirect(repo.Link() + "/settings")
+}
+
+func handleSettingsPostMirrorSyncReplay(ctx *context.Context) {
+	form := web.GetForm(ctx).(*forms.RepoSettingForm)
+	repo := ctx.Repo.Repository
+	if !setting.Mirror.Enabled || repo.IsArchived {
+		ctx.NotFound(nil)
+		return
+	}
+	uuid := strings.TrimSpace(form.MirrorSyncTaskUUID)
+	if uuid == "" {
+		ctx.NotFound(nil)
+		return
+	}
+	task, has, err := repo_model.GetMirrorSyncTaskByUUID(ctx, repo.ID, uuid)
+	if err != nil || !has {
+		ctx.NotFound(nil)
+		return
+	}
+	switch task.MirrorType {
+	case repo_model.MirrorSyncTypePush:
+		mirror_service.AddPushMirrorToQueue(task.PushMirrorID, repo_model.MirrorSyncTriggerManual)
+	case repo_model.MirrorSyncTypePull:
+		mirror_service.AddPullMirrorToQueue(repo.ID, repo_model.MirrorSyncTriggerManual)
+	default:
+		ctx.NotFound(nil)
+		return
+	}
+	ctx.Flash.Info(ctx.Tr("repo.settings.mirror_sync_replay_queued"))
 	ctx.Redirect(repo.Link() + "/settings")
 }
 
@@ -379,10 +469,33 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 		return
 	}
 
-	m.Interval = interval
-	if err := repo_model.UpdatePushMirrorInterval(ctx, m); err != nil {
-		ctx.ServerError("UpdatePushMirrorInterval", err)
+	oldMirrorBranches := m.MirrorBranches
+	mirrorBranchList, err := mirror_service.ParseMirrorBranches(form.PushMirrorMirrorBranches)
+	if err != nil {
+		ctx.Data["Err_PushMirrorMirrorBranches"] = true
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
 		return
+	}
+
+	m.Interval = interval
+	m.SyncOnCommit = ctx.FormBool("push_mirror_sync_on_commit")
+	m.MirrorBranches = mirror_service.JoinMirrorBranches(mirrorBranchList)
+	mirror_service.ApplyDeployStampFromForm(m,
+		ctx.FormBool("push_mirror_deploy_stamp_enabled"),
+		form.PushMirrorDeployStampBranches,
+		form.PushMirrorDeployStampAuthorName,
+		form.PushMirrorDeployStampAuthorEmail,
+		form.PushMirrorDeployStampCommitMessage,
+	)
+	if err := repo_model.UpdatePushMirror(ctx, m); err != nil {
+		ctx.ServerError("UpdatePushMirror", err)
+		return
+	}
+	if m.MirrorBranches != oldMirrorBranches {
+		if err := mirror_service.RefreshPushMirrorRemote(ctx, m); err != nil {
+			ctx.ServerError("RefreshPushMirrorRemote", err)
+			return
+		}
 	}
 	// Background why we are adding it to Queue
 	// If we observed its implementation in the context of `push-mirror-sync` where it
@@ -390,7 +503,7 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	// So, there are updates within the given interval, it is necessary to update the queue accordingly.
 	if !ctx.FormBool("push_mirror_defer_sync") {
 		// push_mirror_defer_sync is mainly for testing purpose, we do not really want to sync the push mirror immediately
-		mirror_service.AddPushMirrorToQueue(m.ID)
+		mirror_service.AddPushMirrorToQueue(m.ID, repo_model.MirrorSyncTriggerManual)
 	}
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
 	ctx.Redirect(repo.Link() + "/settings")
@@ -449,14 +562,32 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		return
 	}
 
-	address, err := git.ParseRemoteAddr(form.PushMirrorAddress, form.PushMirrorUsername, form.PushMirrorPassword)
-	if err == nil {
+	authType := mirror_service.NormalizeMirrorAuthType(form.PushMirrorAuthType)
+	policy := mirror_service.NormalizeSSHHostKeyPolicy(form.PushMirrorSSHHostKeyPolicy)
+	var address string
+	if authType == repo_model.MirrorAuthSSH {
+		address = strings.TrimSpace(form.PushMirrorAddress)
 		err = migrations.IsMigrateURLAllowed(address, ctx.Doer)
-	}
-	if err != nil {
-		ctx.Data["Err_PushMirrorAddress"] = true
-		handleSettingRemoteAddrError(ctx, err, form)
-		return
+		if err != nil {
+			ctx.Data["Err_PushMirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
+		if err := mirror_service.ValidateSSHMirrorFields(policy, form.PushMirrorSSHKnownHostsLine, form.PushMirrorSSHPrivateKey, ""); err != nil {
+			ctx.Data["Err_PushMirrorAuth"] = true
+			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+			return
+		}
+	} else {
+		address, err = git.ParseRemoteAddr(form.PushMirrorAddress, form.PushMirrorUsername, form.PushMirrorPassword)
+		if err == nil {
+			err = migrations.IsMigrateURLAllowed(address, ctx.Doer)
+		}
+		if err != nil {
+			ctx.Data["Err_PushMirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
 	}
 
 	remoteSuffix, err := util.CryptoRandomString(10)
@@ -465,21 +596,54 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		return
 	}
 
-	remoteAddress, err := util.SanitizeURL(form.PushMirrorAddress)
+	remoteAddress, err := giturl.StripCredentialsForStorage(form.PushMirrorAddress)
 	if err != nil {
 		ctx.Data["Err_PushMirrorAddress"] = true
 		handleSettingRemoteAddrError(ctx, err, form)
 		return
 	}
 
-	m := &repo_model.PushMirror{
-		RepoID:        repo.ID,
-		Repo:          repo,
-		RemoteName:    "remote_mirror_" + remoteSuffix,
-		SyncOnCommit:  form.PushMirrorSyncOnCommit,
-		Interval:      interval,
-		RemoteAddress: remoteAddress,
+	var encKey string
+	if authType == repo_model.MirrorAuthSSH {
+		encKey, err = mirror_service.EncryptSSHPrivateKeyOrEmpty(form.PushMirrorSSHPrivateKey)
+		if err != nil {
+			ctx.ServerError("EncryptSSHPrivateKey", err)
+			return
+		}
 	}
+
+	mirrorBranchList, err := mirror_service.ParseMirrorBranches(form.PushMirrorMirrorBranches)
+	if err != nil {
+		ctx.Data["Err_PushMirrorMirrorBranches"] = true
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+		return
+	}
+
+	m := &repo_model.PushMirror{
+		RepoID:                  repo.ID,
+		Repo:                    repo,
+		RemoteName:              "remote_mirror_" + remoteSuffix,
+		SyncOnCommit:            form.PushMirrorSyncOnCommit,
+		Interval:                interval,
+		RemoteAddress:           remoteAddress,
+		MirrorBranches:          mirror_service.JoinMirrorBranches(mirrorBranchList),
+		AuthType:                authType,
+		SSHPrivateKeyEncrypted:  encKey,
+		SSHHostKeyPolicy:        policy,
+		SSHKnownHostFingerprint: strings.TrimSpace(form.PushMirrorSSHKnownHostsLine),
+	}
+	if authType != repo_model.MirrorAuthSSH {
+		m.SSHPrivateKeyEncrypted = ""
+		m.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
+		m.SSHKnownHostFingerprint = ""
+	}
+	mirror_service.ApplyDeployStampFromForm(m,
+		form.PushMirrorDeployStampEnabled,
+		form.PushMirrorDeployStampBranches,
+		form.PushMirrorDeployStampAuthorName,
+		form.PushMirrorDeployStampAuthorEmail,
+		form.PushMirrorDeployStampCommitMessage,
+	)
 	if err := db.Insert(ctx, m); err != nil {
 		ctx.ServerError("InsertPushMirror", err)
 		return

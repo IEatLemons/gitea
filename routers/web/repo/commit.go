@@ -39,10 +39,11 @@ import (
 )
 
 const (
-	tplCommits    templates.TplName = "repo/commits"
-	tplGraph      templates.TplName = "repo/graph"
-	tplGraphDiv   templates.TplName = "repo/graph/div"
-	tplCommitPage templates.TplName = "repo/commit_page"
+	tplCommits     templates.TplName = "repo/commits"
+	tplGraph       templates.TplName = "repo/graph"
+	tplGraphDiv    templates.TplName = "repo/graph/div"
+	tplGraphAppend templates.TplName = "repo/graph/append"
+	tplCommitPage  templates.TplName = "repo/commit_page"
 )
 
 // RefCommits render commits page
@@ -141,9 +142,18 @@ func Graph(ctx *context.Context) {
 		}
 	}
 
-	page := ctx.FormInt("page")
+	divOnly := ctx.FormBool("div-only")
+	requestPage := ctx.FormInt("page")
+	if requestPage < 1 {
+		requestPage = 1
+	}
 
-	graph, err := gitgraph.GetCommitGraph(ctx.Repo.GitRepo, page, 0, hidePRRefs, realBranches, files)
+	graphPage := requestPage
+	if !divOnly {
+		graphPage = 1
+	}
+
+	graph, err := gitgraph.GetCommitGraph(ctx.Repo.GitRepo, graphPage, 0, hidePRRefs, realBranches, files)
 	if err != nil {
 		ctx.ServerError("GetCommitGraph", err)
 		return
@@ -167,12 +177,17 @@ func Graph(ctx *context.Context) {
 	ctx.Data["Username"] = ctx.Repo.Owner.Name
 	ctx.Data["Reponame"] = ctx.Repo.Repository.Name
 
-	divOnly := ctx.FormBool("div-only")
-	queryParams := ctx.Req.URL.Query()
-	queryParams.Del("div-only")
-	paginator := context.NewPagination(graphCommitsCount, setting.UI.GraphMaxCommitNum, page, 5)
-	paginator.AddParamFromQuery(queryParams)
-	ctx.Data["Page"] = paginator
+	pageSize := setting.UI.GraphMaxCommitNum
+	graphHasNext := int64(graphPage)*int64(pageSize) < graphCommitsCount
+	ctx.Data["GraphPageIndex"] = graphPage
+	ctx.Data["GraphHasNext"] = graphHasNext
+	ctx.Data["GraphNextPage"] = graphPage + 1
+
+	if divOnly && requestPage > 1 {
+		ctx.HTML(http.StatusOK, tplGraphAppend)
+		return
+	}
+
 	if divOnly {
 		ctx.HTML(http.StatusOK, tplGraphDiv)
 		return

@@ -21,9 +21,9 @@ func doMirrorSync(ctx context.Context, req *SyncRequest) {
 	}
 	switch req.Type {
 	case PushMirrorType:
-		_ = SyncPushMirror(ctx, req.ReferenceID)
+		_ = SyncPushMirror(ctx, req.ReferenceID, req.TriggerType)
 	case PullMirrorType:
-		_ = SyncPullMirror(ctx, req.ReferenceID)
+		_ = SyncPullMirror(ctx, req.ReferenceID, req.TriggerType)
 	default:
 		log.Error("Unknown Request type in queue: %v for MirrorID[%d]", req.Type, req.ReferenceID)
 	}
@@ -73,7 +73,7 @@ func Update(ctx context.Context, pullLimit, pushLimit int) error {
 		}
 
 		// Push to the Queue
-		if err := PushToQueue(mirrorType, referenceID); err != nil {
+		if err := PushToQueue(mirrorType, referenceID, repo_model.MirrorSyncTriggerScheduled); err != nil {
 			if err == queue.ErrAlreadyInQueue {
 				if mirrorType == PushMirrorType {
 					log.Trace("PushMirrors for %-v already queued for sync", repo)

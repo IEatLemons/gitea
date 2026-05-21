@@ -90,7 +90,7 @@ func TestMirrorPull(t *testing.T) {
 	_, err = repo_model.GetMirrorByRepoID(ctx, mirrorRepo.ID)
 	assert.NoError(t, err)
 
-	ok := mirror_service.SyncPullMirror(ctx, mirrorRepo.ID)
+	ok := mirror_service.SyncPullMirror(ctx, mirrorRepo.ID, "")
 	assert.True(t, ok)
 
 	// actually there is a tag in the source repo, so after "sync", that tag will also come into the mirror
@@ -104,7 +104,7 @@ func TestMirrorPull(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, release_service.DeleteReleaseByID(ctx, repo, release, user, true))
 
-	ok = mirror_service.SyncPullMirror(ctx, mirrorRepo.ID)
+	ok = mirror_service.SyncPullMirror(ctx, mirrorRepo.ID, "")
 	assert.True(t, ok)
 
 	count, err = db.Count[repo_model.Release](t.Context(), findOptions)

@@ -18,6 +18,7 @@ import (
 	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/container"
 	"code.gitea.io/gitea/modules/git"
+	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/hostmatcher"
 	"code.gitea.io/gitea/modules/log"
 	base "code.gitea.io/gitea/modules/migration"
@@ -42,46 +43,58 @@ func RegisterDownloaderFactory(factory base.DownloaderFactory) {
 
 // IsMigrateURLAllowed checks if an URL is allowed to be migrated from
 func IsMigrateURLAllowed(remoteURL string, doer *user_model.User) error {
-	// Remote address can be HTTP/HTTPS/Git URL or local path.
-	u, err := url.Parse(remoteURL)
+	remoteURL = strings.TrimSpace(remoteURL)
+	gu, err := giturl.ParseGitURL(remoteURL)
 	if err != nil {
 		return &git.ErrInvalidCloneAddr{IsURLError: true, Host: remoteURL}
 	}
 
-	if u.Scheme == "file" || u.Scheme == "" {
+	// Remote address can be HTTP/HTTPS/Git/SSH URL or local path.
+	if gu.IsBareLocalPath() || strings.EqualFold(gu.Scheme, "file") {
 		if !doer.CanImportLocal() {
 			return &git.ErrInvalidCloneAddr{Host: "<LOCAL_FILESYSTEM>", IsPermissionDenied: true, LocalPath: true}
 		}
-		isAbs := filepath.IsAbs(u.Host + u.Path)
+		path := gu.Path
+		if !gu.IsBareLocalPath() {
+			path = gu.Host + gu.Path
+		}
+		isAbs := filepath.IsAbs(path)
 		if !isAbs {
 			return &git.ErrInvalidCloneAddr{Host: "<LOCAL_FILESYSTEM>", IsInvalidPath: true, LocalPath: true}
 		}
-		isDir, err := util.IsDir(u.Host + u.Path)
+		isDir, err := util.IsDir(path)
 		if err != nil {
-			log.Error("Unable to check if %s is a directory: %v", u.Host+u.Path, err)
+			log.Error("Unable to check if %s is a directory: %v", path, err)
 			return err
 		}
 		if !isDir {
 			return &git.ErrInvalidCloneAddr{Host: "<LOCAL_FILESYSTEM>", IsInvalidPath: true, LocalPath: true}
 		}
-
 		return nil
 	}
 
-	if u.Scheme == "git" && u.Port() != "" && (strings.Contains(remoteURL, "%0d") || strings.Contains(remoteURL, "%0a")) {
-		return &git.ErrInvalidCloneAddr{Host: u.Host, IsURLError: true}
+	scheme := strings.ToLower(gu.Scheme)
+	if gu.IsSCPForm() {
+		scheme = "ssh"
 	}
 
-	if u.Opaque != "" || u.Scheme != "" && u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "git" {
-		return &git.ErrInvalidCloneAddr{Host: u.Host, IsProtocolInvalid: true, IsPermissionDenied: true, IsURLError: true}
+	if scheme == "git" && gu.URL.Port() != "" && (strings.Contains(remoteURL, "%0d") || strings.Contains(remoteURL, "%0a")) {
+		return &git.ErrInvalidCloneAddr{Host: gu.Host, IsURLError: true}
 	}
 
-	hostName, _, errIgnored := net.SplitHostPort(u.Host)
-	if errIgnored != nil {
-		hostName = u.Host // u.Host can be "host" or "host:port"
+	allowedSchemes := map[string]bool{"http": true, "https": true, "git": true, "ssh": true, "git+ssh": true}
+	if gu.URL.Opaque != "" || !allowedSchemes[scheme] {
+		return &git.ErrInvalidCloneAddr{Host: gu.Host, IsProtocolInvalid: true, IsPermissionDenied: true, IsURLError: true}
 	}
 
-	// some users only use proxy, there is no DNS resolver. it's safe to ignore the LookupIP error
+	hostName := gu.Host
+	if hostName == "" {
+		return &git.ErrInvalidCloneAddr{Host: remoteURL, IsURLError: true}
+	}
+	h, _, errIgnored := net.SplitHostPort(hostName)
+	if errIgnored == nil {
+		hostName = h
+	}
 	addrList, _ := net.LookupIP(hostName)
 	return checkByAllowBlockList(hostName, addrList)
 }

@@ -8,6 +8,7 @@ import (
 
 	repo_model "code.gitea.io/gitea/models/repo"
 	user_model "code.gitea.io/gitea/models/user"
+	"code.gitea.io/gitea/modules/log"
 	"code.gitea.io/gitea/modules/repository"
 	notify_service "code.gitea.io/gitea/services/notify"
 )
@@ -22,7 +23,10 @@ type mirrorNotifier struct {
 
 var _ notify_service.Notifier = &mirrorNotifier{}
 
-func (m *mirrorNotifier) PushCommits(ctx context.Context, _ *user_model.User, repo *repo_model.Repository, _ *repository.PushUpdateOptions, _ *repository.PushCommits) {
+func (m *mirrorNotifier) PushCommits(ctx context.Context, _ *user_model.User, repo *repo_model.Repository, opts *repository.PushUpdateOptions, _ *repository.PushCommits) {
+	if err := MaybeDeployStampOnPush(ctx, repo, opts); err != nil {
+		log.Error("MaybeDeployStampOnPush: %v", err)
+	}
 	syncPushMirrorWithSyncOnCommit(ctx, repo.ID)
 }
 
