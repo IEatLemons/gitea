@@ -114,6 +114,13 @@ type RepoSettingForm struct {
 	PushMirrorDeployStampAuthorName    string
 	PushMirrorDeployStampAuthorEmail   string
 	PushMirrorDeployStampCommitMessage string
+	PushMirrorRecordFileEnabled        bool
+	PushMirrorRecordFileBranches       string
+	PushMirrorRecordFilePath           string
+	PushMirrorRecordFileTemplate       string
+	PushMirrorRecordFileAuthorName     string
+	PushMirrorRecordFileAuthorEmail    string
+	PushMirrorRecordFileCommitMessage  string
 	PushMirrorMirrorBranches           string
 	PushMirrorAuthType                 string
 	PushMirrorSSHPrivateKey            string

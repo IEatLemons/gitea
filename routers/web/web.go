@@ -1149,6 +1149,10 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 			m.Combo("").Get(repo_setting.Settings).
 				Post(web.Bind(forms.RepoSettingForm{}), repo_setting.SettingsPost)
 		}, repo_setting.SettingsCtxData)
+		m.Group("/mirror", func() {
+			m.Combo("").Get(repo_setting.MirrorSettings).
+				Post(web.Bind(forms.RepoSettingForm{}), repo_setting.MirrorSettingsPost)
+		}, repo_setting.MirrorSettingsCtxData)
 		m.Post("/avatar", web.Bind(forms.AvatarForm{}), repo_setting.SettingsAvatar)
 		m.Post("/avatar/delete", repo_setting.SettingsDeleteAvatar)
 

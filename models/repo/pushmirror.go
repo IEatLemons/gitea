@@ -46,6 +46,16 @@ type PushMirror struct {
 	DeployStampAuthorName    string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
 	DeployStampAuthorEmail   string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
 	DeployStampCommitMessage string `xorm:"VARCHAR(512) NOT NULL DEFAULT 'chore: deploy stamp'"`
+
+	// RecordFile: before push-mirror sync, overwrite one repository file and
+	// commit the change so the mirrored branch records this sync.
+	RecordFileEnabled       bool   `xorm:"NOT NULL DEFAULT false"`
+	RecordFileBranches      string `xorm:"TEXT"` // comma-separated branch names
+	RecordFilePath          string `xorm:"VARCHAR(1024) NOT NULL DEFAULT ''"`
+	RecordFileTemplate      string `xorm:"LONGTEXT"`
+	RecordFileAuthorName    string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
+	RecordFileAuthorEmail   string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
+	RecordFileCommitMessage string `xorm:"VARCHAR(512) NOT NULL DEFAULT 'chore: update mirror record'"`
 }
 
 type PushMirrorOptions struct {

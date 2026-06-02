@@ -11,6 +11,40 @@
 			<span id="push-mirror-edit-address"></span>
 		</div>
 		<div class="field">
+			<label for="push-mirror-edit-address-input">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.remote_url"}}</label>
+			<input id="push-mirror-edit-address-input" name="push_mirror_address">
+		</div>
+		<div class="inline field">
+			<label for="push-mirror-edit-auth-type">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type"}}</label>
+			<input id="push-mirror-edit-auth-type" name="push_mirror_auth_type">
+		</div>
+		<details class="ui optional field">
+			<summary class="tw-p-1">{{ctx.Locale.Tr "repo.need_auth"}}</summary>
+			<div class="tw-p-1">
+				<div class="inline field">
+					<label for="push-mirror-edit-username">{{ctx.Locale.Tr "username"}}</label>
+					<input id="push-mirror-edit-username" name="push_mirror_username">
+				</div>
+				<div class="inline field">
+					<label for="push-mirror-edit-password">{{ctx.Locale.Tr "password"}}</label>
+					<input id="push-mirror-edit-password" name="push_mirror_password" type="password" autocomplete="off">
+				</div>
+				<div class="field">
+					<label for="push-mirror-edit-ssh-private-key">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key"}}</label>
+					<textarea id="push-mirror-edit-ssh-private-key" name="push_mirror_ssh_private_key" rows="5"></textarea>
+					<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key_update_desc"}}</p>
+				</div>
+				<div class="inline field">
+					<label for="push-mirror-edit-ssh-host-key-policy">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy"}}</label>
+					<input id="push-mirror-edit-ssh-host-key-policy" name="push_mirror_ssh_host_key_policy" value="fingerprint">
+				</div>
+				<div class="field">
+					<label for="push-mirror-edit-ssh-known-hosts-line">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_known_hosts_line"}}</label>
+					<input id="push-mirror-edit-ssh-known-hosts-line" name="push_mirror_ssh_known_hosts_line">
+				</div>
+			</div>
+		</details>
+		<div class="field">
 			<label for="push-mirror-edit-interval">{{ctx.Locale.Tr "repo.mirror_interval" .MinimumMirrorInterval}}</label>
 			<input id="push-mirror-edit-interval" name="push_mirror_interval" class="tw-w-auto">
 		</div>
@@ -52,6 +86,44 @@
 			<div class="field">
 				<label for="push-mirror-edit-commit-message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message"}}</label>
 				<input id="push-mirror-edit-commit-message" name="push_mirror_deploy_stamp_commit_message">
+			</div>
+		</div>
+		<div class="ui divider"></div>
+		<div class="field">
+			<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_section"}}</label>
+			<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_description"}}</p>
+			<div class="field">
+				<div class="ui checkbox">
+					<input id="push-mirror-edit-record-file-enabled" name="push_mirror_record_file_enabled" type="checkbox">
+					<label for="push-mirror-edit-record-file-enabled">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_enable"}}</label>
+				</div>
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-record-file-branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_branches"}}</label>
+				<input id="push-mirror-edit-record-file-branches" name="push_mirror_record_file_branches" class="tw-w-full">
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-record-file-path">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_path"}}</label>
+				<input id="push-mirror-edit-record-file-path" name="push_mirror_record_file_path">
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-record-file-template">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_template"}}</label>
+				<textarea id="push-mirror-edit-record-file-template" name="push_mirror_record_file_template" rows="5"></textarea>
+				<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_template_desc"}}</p>
+			</div>
+			<div class="two fields">
+				<div class="field">
+					<label for="push-mirror-edit-record-file-author-name">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_author_name"}}</label>
+					<input id="push-mirror-edit-record-file-author-name" name="push_mirror_record_file_author_name">
+				</div>
+				<div class="field">
+					<label for="push-mirror-edit-record-file-author-email">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_author_email"}}</label>
+					<input id="push-mirror-edit-record-file-author-email" name="push_mirror_record_file_author_email" type="email">
+				</div>
+			</div>
+			<div class="field">
+				<label for="push-mirror-edit-record-file-commit-message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_commit_message"}}</label>
+				<input id="push-mirror-edit-record-file-commit-message" name="push_mirror_record_file_commit_message">
 			</div>
 		</div>
 		<div class="actions">

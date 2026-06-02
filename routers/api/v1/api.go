@@ -1322,7 +1322,7 @@ func Routes() *web.Router {
 					})
 				}, reqRepoReader(unit.TypeReleases))
 				m.Post("/mirror-sync", reqToken(), reqRepoWriter(unit.TypeCode), mustNotBeArchived, repo.MirrorSync)
-				m.Post("/push_mirrors-sync", reqAdmin(), reqToken(), mustNotBeArchived, repo.PushMirrorSync)
+				m.Post("/push_mirrors-sync", reqOwner(), reqToken(), mustNotBeArchived, repo.PushMirrorSync)
 				m.Group("/push_mirrors", func() {
 					m.Combo("").Get(repo.ListPushMirrors).
 						Post(mustNotBeArchived, bind(api.CreatePushMirrorOption{}), repo.AddPushMirror)
@@ -1331,7 +1331,7 @@ func Routes() *web.Router {
 						Patch(mustNotBeArchived, bind(api.EditPushMirrorOption{}), repo.EditPushMirror).
 						Delete(mustNotBeArchived, repo.DeletePushMirrorByRemoteName).
 						Get(repo.GetPushMirrorByName)
-				}, reqAdmin(), reqToken())
+				}, reqOwner(), reqToken())
 
 				m.Get("/editorconfig/{filename}", context.ReferencesGitRepo(), context.RepoRefForAPI, reqRepoReader(unit.TypeCode), repo.GetEditorconfig)
 				m.Group("/pulls", func() {

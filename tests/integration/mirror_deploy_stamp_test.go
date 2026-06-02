@@ -13,6 +13,7 @@ import (
 	"code.gitea.io/gitea/models/unittest"
 	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/git"
+	"code.gitea.io/gitea/modules/git/gitcmd"
 	"code.gitea.io/gitea/modules/gitrepo"
 	"code.gitea.io/gitea/modules/repository"
 	"code.gitea.io/gitea/modules/setting"
@@ -28,6 +29,70 @@ import (
 func TestPushMirrorDeployStamp(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 	onGiteaRun(t, testPushMirrorDeployStamp)
+}
+
+func TestPushMirrorRecordFile(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+	onGiteaRun(t, testPushMirrorRecordFile)
+}
+
+func testPushMirrorRecordFile(t *testing.T, u *url.URL) {
+	setting.Migrations.AllowLocalNetworks = true
+	require.NoError(t, migrations.Init())
+
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	srcRepo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+
+	mirrorRepo, err := repo_service.CreateRepositoryDirectly(t.Context(), user, user, repo_service.CreateRepoOptions{
+		Name: "record-file-mirror-dest",
+	}, true)
+	require.NoError(t, err)
+
+	session := loginUser(t, user.Name)
+	pushMirrorURL := fmt.Sprintf("%s%s/%s", u.String(), url.PathEscape(user.Name), url.PathEscape(mirrorRepo.Name))
+	testCreatePushMirror(t, session, user.Name, srcRepo.Name, pushMirrorURL, user.LowerName, userPassword, "0")
+
+	mirrors, _, err := repo_model.GetPushMirrorsByRepoID(t.Context(), srcRepo.ID, db.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, mirrors, 1)
+	pm := mirrors[0]
+	pm.Repo = srcRepo
+	pm.RecordFileEnabled = true
+	pm.RecordFileBranches = "master"
+	pm.RecordFilePath = ".mirror-record"
+	pm.RecordFileTemplate = "repo={{.Repo}}\nbranch={{.Branch}}\nold={{.OldCommit}}\ntrigger={{.TriggerType}}\n"
+	pm.RecordFileAuthorName = "Mirror Bot"
+	pm.RecordFileAuthorEmail = "mirror@example.com"
+	pm.RecordFileCommitMessage = "chore: update mirror record"
+	require.NoError(t, repo_model.UpdatePushMirror(t.Context(), pm))
+
+	gitRepo, err := gitrepo.OpenRepository(t.Context(), srcRepo)
+	require.NoError(t, err)
+	defer gitRepo.Close()
+
+	oldHead, err := gitRepo.GetBranchCommitID("master")
+	require.NoError(t, err)
+
+	require.NoError(t, mirror_service.MaybeRecordFileBeforePush(t.Context(), pm, repo_model.MirrorSyncTriggerManual))
+
+	newHead, err := gitRepo.GetBranchCommitID("master")
+	require.NoError(t, err)
+	require.NotEqual(t, oldHead, newHead)
+	newCommit, err := gitRepo.GetCommit(newHead)
+	require.NoError(t, err)
+	assert.Equal(t, "Mirror Bot", newCommit.Author.Name)
+	assert.Equal(t, "mirror@example.com", newCommit.Author.Email)
+	parent0, err := newCommit.ParentID(0)
+	require.NoError(t, err)
+	assert.Equal(t, oldHead, parent0.String())
+
+	recordContent, _, err := gitcmd.NewCommand("show").AddDynamicArguments(newHead + ":.mirror-record").WithDir(gitRepo.Path).RunStdString(t.Context())
+	require.NoError(t, err)
+	assert.Contains(t, recordContent, "branch=master")
+	assert.Contains(t, recordContent, "old="+oldHead)
+	assert.Contains(t, recordContent, "trigger="+repo_model.MirrorSyncTriggerManual)
+
+	assert.True(t, doRemovePushMirror(t, session, user.Name, srcRepo.Name, pm.ID))
 }
 
 func testPushMirrorDeployStamp(t *testing.T, u *url.URL) {

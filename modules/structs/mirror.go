@@ -24,6 +24,15 @@ type CreatePushMirrorOption struct {
 	DeployStampAuthorName    string `json:"deploy_stamp_author_name"`
 	DeployStampAuthorEmail   string `json:"deploy_stamp_author_email"`
 	DeployStampCommitMessage string `json:"deploy_stamp_commit_message"`
+	// overwrite a record file and commit it before mirror push
+	RecordFileEnabled bool `json:"record_file_enabled"`
+	// comma-separated branch names
+	RecordFileBranches      string `json:"record_file_branches"`
+	RecordFilePath          string `json:"record_file_path"`
+	RecordFileTemplate      string `json:"record_file_template"`
+	RecordFileAuthorName    string `json:"record_file_author_name"`
+	RecordFileAuthorEmail   string `json:"record_file_author_email"`
+	RecordFileCommitMessage string `json:"record_file_commit_message"`
 	// Comma-separated branch names; empty mirrors all branches and tags.
 	MirrorBranches string `json:"mirror_branches"`
 	// https or ssh (default https)
@@ -45,7 +54,21 @@ type EditPushMirrorOption struct {
 	DeployStampAuthorName    *string `json:"deploy_stamp_author_name"`
 	DeployStampAuthorEmail   *string `json:"deploy_stamp_author_email"`
 	DeployStampCommitMessage *string `json:"deploy_stamp_commit_message"`
+	RecordFileEnabled       *bool   `json:"record_file_enabled"`
+	RecordFileBranches      *string `json:"record_file_branches"`
+	RecordFilePath          *string `json:"record_file_path"`
+	RecordFileTemplate      *string `json:"record_file_template"`
+	RecordFileAuthorName    *string `json:"record_file_author_name"`
+	RecordFileAuthorEmail   *string `json:"record_file_author_email"`
+	RecordFileCommitMessage *string `json:"record_file_commit_message"`
 	MirrorBranches           *string `json:"mirror_branches"`
+	RemoteAddress            *string `json:"remote_address"`
+	RemoteUsername           *string `json:"remote_username"`
+	RemotePassword           *string `json:"remote_password"`
+	AuthType                 *string `json:"auth_type"`
+	SSHPrivateKey            *string `json:"ssh_private_key"`
+	SSHHostKeyPolicy         *string `json:"ssh_host_key_policy"`
+	SSHKnownHostFingerprint  *string `json:"ssh_known_hosts_line"`
 }
 
 // PushMirror represents information of a push mirror
@@ -72,6 +95,13 @@ type PushMirror struct {
 	DeployStampAuthorName    string `json:"deploy_stamp_author_name"`
 	DeployStampAuthorEmail   string `json:"deploy_stamp_author_email"`
 	DeployStampCommitMessage string `json:"deploy_stamp_commit_message"`
+	RecordFileEnabled       bool   `json:"record_file_enabled"`
+	RecordFileBranches      string `json:"record_file_branches"`
+	RecordFilePath          string `json:"record_file_path"`
+	RecordFileTemplate      string `json:"record_file_template"`
+	RecordFileAuthorName    string `json:"record_file_author_name"`
+	RecordFileAuthorEmail   string `json:"record_file_author_email"`
+	RecordFileCommitMessage string `json:"record_file_commit_message"`
 	MirrorBranches           string `json:"mirror_branches"`
 	AuthType                 string `json:"auth_type"`
 	SSHHostKeyPolicy         string `json:"ssh_host_key_policy"`

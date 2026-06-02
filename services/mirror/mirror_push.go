@@ -154,7 +154,7 @@ func SyncPushMirror(ctx context.Context, mirrorID int64, triggerType string) boo
 	defer finished()
 
 	log.Trace("SyncPushMirror [mirror: %d][repo: %-v]: Running Sync", m.ID, m.Repo)
-	stdout, stderr, runErr := runPushSync(ctx, m)
+	stdout, stderr, runErr := runPushSync(ctx, m, triggerType)
 	if runErr != nil {
 		log.Error("SyncPushMirror [mirror: %d][repo: %-v]: %v", m.ID, m.Repo, runErr)
 		m.LastError = stripExitStatus.ReplaceAllLiteralString(runErr.Error(), "")
@@ -187,7 +187,7 @@ func SyncPushMirror(ctx context.Context, mirrorID int64, triggerType string) boo
 	return syncErr == nil
 }
 
-func runPushSync(ctx context.Context, m *repo_model.PushMirror) (stdout, stderr string, err error) {
+func runPushSync(ctx context.Context, m *repo_model.PushMirror, triggerType string) (stdout, stderr string, err error) {
 	timeout := time.Duration(setting.Git.Timeout.Mirror) * time.Second
 
 	var outBuf, errBuf strings.Builder
@@ -196,6 +196,11 @@ func runPushSync(ctx context.Context, m *repo_model.PushMirror) (stdout, stderr 
 		var storageRepo gitrepo.Repository = repo
 		if isWiki {
 			storageRepo = repo.WikiStorageRepo()
+		}
+		if !isWiki {
+			if err := MaybeRecordFileBeforePush(ctx, m, triggerType); err != nil {
+				return err
+			}
 		}
 		remoteURL, err := gitrepo.GitRemoteGetURL(ctx, storageRepo, m.RemoteName)
 		if err != nil {

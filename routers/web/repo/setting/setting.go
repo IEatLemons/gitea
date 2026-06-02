@@ -43,6 +43,7 @@ import (
 
 const (
 	tplSettingsOptions templates.TplName = "repo/settings/options"
+	tplSettingsMirror  templates.TplName = "repo/settings/mirror"
 	tplCollaboration   templates.TplName = "repo/settings/collaboration"
 	tplBranches        templates.TplName = "repo/settings/branches"
 	tplGithooks        templates.TplName = "repo/settings/githooks"
@@ -126,6 +127,49 @@ func Settings(ctx *context.Context) {
 	ctx.HTML(http.StatusOK, tplSettingsOptions)
 }
 
+func MirrorSettingsCtxData(ctx *context.Context) {
+	SettingsCtxData(ctx)
+	if ctx.Written() {
+		return
+	}
+	ctx.Data["Title"] = ctx.Tr("repo.settings.mirror_settings")
+	ctx.Data["PageIsSettingsOptions"] = false
+	ctx.Data["PageIsSettingsMirror"] = true
+}
+
+func MirrorSettings(ctx *context.Context) {
+	if !ctx.Repo.IsOwner() {
+		ctx.NotFound(nil)
+		return
+	}
+	ctx.HTML(http.StatusOK, tplSettingsMirror)
+}
+
+func MirrorSettingsPost(ctx *context.Context) {
+	if !ctx.Repo.IsOwner() {
+		ctx.NotFound(nil)
+		return
+	}
+	switch ctx.FormString("action") {
+	case "mirror":
+		handleSettingsPostMirror(ctx)
+	case "mirror-sync":
+		handleSettingsPostMirrorSync(ctx)
+	case "mirror-sync-replay":
+		handleSettingsPostMirrorSyncReplay(ctx)
+	case "push-mirror-sync":
+		handleSettingsPostPushMirrorSync(ctx)
+	case "push-mirror-update":
+		handleSettingsPostPushMirrorUpdate(ctx)
+	case "push-mirror-remove":
+		handleSettingsPostPushMirrorRemove(ctx)
+	case "push-mirror-add":
+		handleSettingsPostPushMirrorAdd(ctx)
+	default:
+		ctx.NotFound(nil)
+	}
+}
+
 // SettingsPost response for changes of a repository
 func SettingsPost(ctx *context.Context) {
 	ctx.Data["ForcePrivate"] = setting.Repository.ForcePrivate
@@ -186,6 +230,18 @@ func SettingsPost(ctx *context.Context) {
 	default:
 		ctx.NotFound(nil)
 	}
+}
+
+func mirrorSettingsLink(repo *repo_model.Repository) string {
+	return repo.Link() + "/settings/mirror"
+}
+
+func ensureMirrorSettingsOwner(ctx *context.Context) bool {
+	if !ctx.Repo.IsOwner() {
+		ctx.NotFound(nil)
+		return false
+	}
+	return true
 }
 
 func handleSettingsPostUpdate(ctx *context.Context) {
@@ -253,6 +309,9 @@ func handleSettingsPostUpdate(ctx *context.Context) {
 func handleSettingsPostMirror(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled || !repo.IsMirror || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -274,7 +333,7 @@ func handleSettingsPostMirror(ctx *context.Context) {
 	interval, err := time.ParseDuration(form.Interval)
 	if err != nil || (interval != 0 && interval < setting.Mirror.MinInterval) {
 		ctx.Data["Err_Interval"] = true
-		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsOptions, &form)
+		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsMirror, &form)
 		return
 	}
 
@@ -298,7 +357,7 @@ func handleSettingsPostMirror(ctx *context.Context) {
 		}
 		if err := mirror_service.ValidateSSHMirrorFields(policy, form.MirrorSSHKnownHostsLine, form.MirrorSSHPrivateKey, pullMirror.SSHPrivateKeyEncrypted); err != nil {
 			ctx.Data["Err_MirrorAuth"] = true
-			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
 			return
 		}
 		enc, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(form.MirrorSSHPrivateKey)
@@ -358,7 +417,7 @@ func handleSettingsPostMirror(ctx *context.Context) {
 		ep := lfs.DetermineEndpoint("", form.LFSEndpoint)
 		if ep == nil {
 			ctx.Data["Err_LFSEndpoint"] = true
-			ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.invalid_lfs_endpoint"), tplSettingsOptions, &form)
+			ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.invalid_lfs_endpoint"), tplSettingsMirror, &form)
 			return
 		}
 		err = migrations.IsMigrateURLAllowed(ep.String(), ctx.Doer)
@@ -377,11 +436,14 @@ func handleSettingsPostMirror(ctx *context.Context) {
 	}
 
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostMirrorSync(ctx *context.Context) {
 	repo := ctx.Repo.Repository
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled || !repo.IsMirror || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -390,13 +452,16 @@ func handleSettingsPostMirrorSync(ctx *context.Context) {
 	mirror_service.AddPullMirrorToQueue(repo.ID, repo_model.MirrorSyncTriggerManual)
 
 	ctx.Flash.Info(ctx.Tr("repo.settings.pull_mirror_sync_in_progress", repo.OriginalURL))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostPushMirrorSync(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
 
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled {
 		ctx.NotFound(nil)
 		return
@@ -411,12 +476,15 @@ func handleSettingsPostPushMirrorSync(ctx *context.Context) {
 	mirror_service.AddPushMirrorToQueue(m.ID, repo_model.MirrorSyncTriggerManual)
 
 	ctx.Flash.Info(ctx.Tr("repo.settings.push_mirror_sync_in_progress", m.RemoteAddress))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostMirrorSyncReplay(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -441,13 +509,16 @@ func handleSettingsPostMirrorSyncReplay(ctx *context.Context) {
 		return
 	}
 	ctx.Flash.Info(ctx.Tr("repo.settings.mirror_sync_replay_queued"))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
 
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -459,7 +530,7 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 
 	interval, err := time.ParseDuration(form.PushMirrorInterval)
 	if err != nil || (interval != 0 && interval < setting.Mirror.MinInterval) {
-		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsOptions, &forms.RepoSettingForm{})
+		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsMirror, &forms.RepoSettingForm{})
 		return
 	}
 
@@ -473,7 +544,7 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	mirrorBranchList, err := mirror_service.ParseMirrorBranches(form.PushMirrorMirrorBranches)
 	if err != nil {
 		ctx.Data["Err_PushMirrorMirrorBranches"] = true
-		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
 		return
 	}
 
@@ -487,11 +558,89 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 		form.PushMirrorDeployStampAuthorEmail,
 		form.PushMirrorDeployStampCommitMessage,
 	)
+	if err := mirror_service.ApplyRecordFileFromForm(m,
+		ctx.FormBool("push_mirror_record_file_enabled"),
+		form.PushMirrorRecordFileBranches,
+		form.PushMirrorRecordFilePath,
+		form.PushMirrorRecordFileTemplate,
+		form.PushMirrorRecordFileAuthorName,
+		form.PushMirrorRecordFileAuthorEmail,
+		form.PushMirrorRecordFileCommitMessage,
+	); err != nil {
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+		return
+	}
+	remoteAddressForRefresh := ""
+	if form.PushMirrorAuthType != "" {
+		m.AuthType = mirror_service.NormalizeMirrorAuthType(form.PushMirrorAuthType)
+	}
+	if form.PushMirrorSSHHostKeyPolicy != "" {
+		m.SSHHostKeyPolicy = mirror_service.NormalizeSSHHostKeyPolicy(form.PushMirrorSSHHostKeyPolicy)
+	}
+	if form.PushMirrorSSHKnownHostsLine != "" {
+		m.SSHKnownHostFingerprint = strings.TrimSpace(form.PushMirrorSSHKnownHostsLine)
+	}
+	if strings.TrimSpace(form.PushMirrorSSHPrivateKey) != "" {
+		encKey, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(form.PushMirrorSSHPrivateKey)
+		if err != nil {
+			ctx.ServerError("EncryptSSHPrivateKey", err)
+			return
+		}
+		m.SSHPrivateKeyEncrypted = encKey
+	}
+	if m.AuthType == repo_model.MirrorAuthSSH {
+		if err := mirror_service.ValidateSSHMirrorFields(m.SSHHostKeyPolicy, m.SSHKnownHostFingerprint, "", m.SSHPrivateKeyEncrypted); err != nil {
+			ctx.Data["Err_PushMirrorAuth"] = true
+			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+			return
+		}
+	} else {
+		m.SSHPrivateKeyEncrypted = ""
+		m.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
+		m.SSHKnownHostFingerprint = ""
+	}
+	if strings.TrimSpace(form.PushMirrorAddress) != "" && strings.TrimSpace(form.PushMirrorAddress) != m.RemoteAddress {
+		if m.AuthType == repo_model.MirrorAuthSSH {
+			remoteAddressForRefresh = strings.TrimSpace(form.PushMirrorAddress)
+			if err := migrations.IsMigrateURLAllowed(remoteAddressForRefresh, ctx.Doer); err != nil {
+				ctx.Data["Err_PushMirrorAddress"] = true
+				handleSettingRemoteAddrError(ctx, err, form)
+				return
+			}
+		} else {
+			var err error
+			remoteAddressForRefresh, err = git.ParseRemoteAddr(form.PushMirrorAddress, form.PushMirrorUsername, form.PushMirrorPassword)
+			if err == nil {
+				err = migrations.IsMigrateURLAllowed(remoteAddressForRefresh, ctx.Doer)
+			}
+			if err != nil {
+				ctx.Data["Err_PushMirrorAddress"] = true
+				handleSettingRemoteAddrError(ctx, err, form)
+				return
+			}
+		}
+		remoteAddress, err := giturl.StripCredentialsForStorage(form.PushMirrorAddress)
+		if err != nil {
+			ctx.Data["Err_PushMirrorAddress"] = true
+			handleSettingRemoteAddrError(ctx, err, form)
+			return
+		}
+		m.RemoteAddress = remoteAddress
+	}
 	if err := repo_model.UpdatePushMirror(ctx, m); err != nil {
 		ctx.ServerError("UpdatePushMirror", err)
 		return
 	}
-	if m.MirrorBranches != oldMirrorBranches {
+	if remoteAddressForRefresh != "" {
+		if err := mirror_service.RemovePushMirrorRemote(ctx, m); err != nil {
+			ctx.ServerError("RemovePushMirrorRemote", err)
+			return
+		}
+		if err := mirror_service.AddPushMirrorRemote(ctx, m, remoteAddressForRefresh); err != nil {
+			ctx.ServerError("AddPushMirrorRemote", err)
+			return
+		}
+	} else if m.MirrorBranches != oldMirrorBranches {
 		if err := mirror_service.RefreshPushMirrorRemote(ctx, m); err != nil {
 			ctx.ServerError("RefreshPushMirrorRemote", err)
 			return
@@ -506,13 +655,16 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 		mirror_service.AddPushMirrorToQueue(m.ID, repo_model.MirrorSyncTriggerManual)
 	}
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostPushMirrorRemove(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
 
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if !setting.Mirror.Enabled || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -539,13 +691,16 @@ func handleSettingsPostPushMirrorRemove(ctx *context.Context) {
 	}
 
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
 
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
 	if setting.Mirror.DisableNewPush || repo.IsArchived {
 		ctx.NotFound(nil)
 		return
@@ -558,7 +713,7 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 	interval, err := time.ParseDuration(form.PushMirrorInterval)
 	if err != nil || (interval != 0 && interval < setting.Mirror.MinInterval) {
 		ctx.Data["Err_PushMirrorInterval"] = true
-		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsOptions, &form)
+		ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_interval_invalid"), tplSettingsMirror, &form)
 		return
 	}
 
@@ -575,7 +730,7 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		}
 		if err := mirror_service.ValidateSSHMirrorFields(policy, form.PushMirrorSSHKnownHostsLine, form.PushMirrorSSHPrivateKey, ""); err != nil {
 			ctx.Data["Err_PushMirrorAuth"] = true
-			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
 			return
 		}
 	} else {
@@ -615,7 +770,7 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 	mirrorBranchList, err := mirror_service.ParseMirrorBranches(form.PushMirrorMirrorBranches)
 	if err != nil {
 		ctx.Data["Err_PushMirrorMirrorBranches"] = true
-		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsOptions, &form)
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
 		return
 	}
 
@@ -644,6 +799,18 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		form.PushMirrorDeployStampAuthorEmail,
 		form.PushMirrorDeployStampCommitMessage,
 	)
+	if err := mirror_service.ApplyRecordFileFromForm(m,
+		form.PushMirrorRecordFileEnabled,
+		form.PushMirrorRecordFileBranches,
+		form.PushMirrorRecordFilePath,
+		form.PushMirrorRecordFileTemplate,
+		form.PushMirrorRecordFileAuthorName,
+		form.PushMirrorRecordFileAuthorEmail,
+		form.PushMirrorRecordFileCommitMessage,
+	); err != nil {
+		ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+		return
+	}
 	if err := db.Insert(ctx, m); err != nil {
 		ctx.ServerError("InsertPushMirror", err)
 		return
@@ -658,7 +825,7 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 	}
 
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
-	ctx.Redirect(repo.Link() + "/settings")
+	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
 func newRepoUnit(repo *repo_model.Repository, unitType unit_model.Type, config convert.Conversion) repo_model.RepoUnit {
@@ -1197,21 +1364,21 @@ func handleSettingRemoteAddrError(ctx *context.Context, err error, form *forms.R
 		addrErr := err.(*git.ErrInvalidCloneAddr)
 		switch {
 		case addrErr.IsProtocolInvalid:
-			ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_address_protocol_invalid"), tplSettingsOptions, form)
+			ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_address_protocol_invalid"), tplSettingsMirror, form)
 		case addrErr.IsURLError:
-			ctx.RenderWithErrDeprecated(ctx.Tr("form.url_error", addrErr.Host), tplSettingsOptions, form)
+			ctx.RenderWithErrDeprecated(ctx.Tr("form.url_error", addrErr.Host), tplSettingsMirror, form)
 		case addrErr.IsPermissionDenied:
 			if addrErr.LocalPath {
-				ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.permission_denied"), tplSettingsOptions, form)
+				ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.permission_denied"), tplSettingsMirror, form)
 			} else {
-				ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.permission_denied_blocked"), tplSettingsOptions, form)
+				ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.permission_denied_blocked"), tplSettingsMirror, form)
 			}
 		case addrErr.IsInvalidPath:
-			ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.invalid_local_path"), tplSettingsOptions, form)
+			ctx.RenderWithErrDeprecated(ctx.Tr("repo.migrate.invalid_local_path"), tplSettingsMirror, form)
 		default:
 			ctx.ServerError("Unknown error", err)
 		}
 		return
 	}
-	ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_address_url_invalid"), tplSettingsOptions, form)
+	ctx.RenderWithErrDeprecated(ctx.Tr("repo.mirror_address_url_invalid"), tplSettingsMirror, form)
 }

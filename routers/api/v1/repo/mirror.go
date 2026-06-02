@@ -326,9 +326,22 @@ func DeletePushMirrorByRemoteName(ctx *context.APIContext) {
 	}
 
 	remoteName := ctx.PathParam("name")
-	// Delete push mirror on repo by name.
-	err := repo_model.DeletePushMirrors(ctx, repo_model.PushMirrorOptions{RepoID: ctx.Repo.Repository.ID, RemoteName: remoteName})
+	m, exist, err := db.Get[repo_model.PushMirror](ctx, repo_model.PushMirrorOptions{
+		RepoID:     ctx.Repo.Repository.ID,
+		RemoteName: remoteName,
+	}.ToConds())
 	if err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	} else if !exist {
+		ctx.APIError(http.StatusNotFound, nil)
+		return
+	}
+	if err := mirror_service.RemovePushMirrorRemote(ctx, m); err != nil {
+		ctx.APIErrorInternal(err)
+		return
+	}
+	if err := repo_model.DeletePushMirrors(ctx, repo_model.PushMirrorOptions{RepoID: ctx.Repo.Repository.ID, RemoteName: remoteName}); err != nil {
 		ctx.APIError(http.StatusNotFound, err)
 		return
 	}
@@ -421,6 +434,18 @@ func CreatePushMirror(ctx *context.APIContext, mirrorOption *api.CreatePushMirro
 		mirrorOption.DeployStampAuthorEmail,
 		mirrorOption.DeployStampCommitMessage,
 	)
+	if err := mirror_service.ApplyRecordFileFromForm(pushMirror,
+		mirrorOption.RecordFileEnabled,
+		mirrorOption.RecordFileBranches,
+		mirrorOption.RecordFilePath,
+		mirrorOption.RecordFileTemplate,
+		mirrorOption.RecordFileAuthorName,
+		mirrorOption.RecordFileAuthorEmail,
+		mirrorOption.RecordFileCommitMessage,
+	); err != nil {
+		ctx.APIError(http.StatusBadRequest, err.Error())
+		return
+	}
 
 	if err = db.Insert(ctx, pushMirror); err != nil {
 		ctx.APIErrorInternal(err)
@@ -501,6 +526,7 @@ func EditPushMirror(ctx *context.APIContext) {
 	}
 
 	oldMirrorBranches := m.MirrorBranches
+	var remoteAddressForRefresh string
 
 	if opt.Interval != nil {
 		interval, err := time.ParseDuration(*opt.Interval)
@@ -536,12 +562,123 @@ func EditPushMirror(ctx *context.APIContext) {
 		}
 		m.MirrorBranches = mirror_service.JoinMirrorBranches(branches)
 	}
+	if opt.RecordFileEnabled != nil {
+		m.RecordFileEnabled = *opt.RecordFileEnabled
+	}
+	if opt.RecordFileBranches != nil {
+		branches, err := mirror_service.ParseMirrorBranches(*opt.RecordFileBranches)
+		if err != nil {
+			ctx.APIError(http.StatusBadRequest, err.Error())
+			return
+		}
+		m.RecordFileBranches = mirror_service.JoinMirrorBranches(branches)
+	}
+	if opt.RecordFilePath != nil {
+		m.RecordFilePath = strings.TrimSpace(*opt.RecordFilePath)
+	}
+	if opt.RecordFileTemplate != nil {
+		m.RecordFileTemplate = *opt.RecordFileTemplate
+	}
+	if opt.RecordFileAuthorName != nil {
+		m.RecordFileAuthorName = strings.TrimSpace(*opt.RecordFileAuthorName)
+	}
+	if opt.RecordFileAuthorEmail != nil {
+		m.RecordFileAuthorEmail = strings.TrimSpace(*opt.RecordFileAuthorEmail)
+	}
+	if opt.RecordFileCommitMessage != nil {
+		m.RecordFileCommitMessage = strings.TrimSpace(*opt.RecordFileCommitMessage)
+	}
+	if err := mirror_service.ApplyRecordFileFromForm(m,
+		m.RecordFileEnabled,
+		m.RecordFileBranches,
+		m.RecordFilePath,
+		m.RecordFileTemplate,
+		m.RecordFileAuthorName,
+		m.RecordFileAuthorEmail,
+		m.RecordFileCommitMessage,
+	); err != nil {
+		ctx.APIError(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if opt.AuthType != nil {
+		m.AuthType = mirror_service.NormalizeMirrorAuthType(*opt.AuthType)
+	}
+	if opt.SSHHostKeyPolicy != nil {
+		m.SSHHostKeyPolicy = mirror_service.NormalizeSSHHostKeyPolicy(*opt.SSHHostKeyPolicy)
+	}
+	if opt.SSHKnownHostFingerprint != nil {
+		m.SSHKnownHostFingerprint = strings.TrimSpace(*opt.SSHKnownHostFingerprint)
+	}
+	if opt.SSHPrivateKey != nil && strings.TrimSpace(*opt.SSHPrivateKey) != "" {
+		encKey, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(*opt.SSHPrivateKey)
+		if err != nil {
+			ctx.APIErrorInternal(err)
+			return
+		}
+		m.SSHPrivateKeyEncrypted = encKey
+	}
+	if m.AuthType == repo_model.MirrorAuthSSH {
+		if err := mirror_service.ValidateSSHMirrorFields(m.SSHHostKeyPolicy, m.SSHKnownHostFingerprint, "", m.SSHPrivateKeyEncrypted); err != nil {
+			ctx.APIError(http.StatusBadRequest, err.Error())
+			return
+		}
+	} else {
+		m.SSHPrivateKeyEncrypted = ""
+		m.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
+		m.SSHKnownHostFingerprint = ""
+	}
+	if opt.RemoteAddress != nil {
+		authType := mirror_service.NormalizeMirrorAuthType(m.AuthType)
+		var address string
+		if authType == repo_model.MirrorAuthSSH {
+			address = strings.TrimSpace(*opt.RemoteAddress)
+			if err := migrations.IsMigrateURLAllowed(address, ctx.ContextUser); err != nil {
+				HandleRemoteAddressError(ctx, err)
+				return
+			}
+		} else {
+			username := ""
+			password := ""
+			if opt.RemoteUsername != nil {
+				username = *opt.RemoteUsername
+			}
+			if opt.RemotePassword != nil {
+				password = *opt.RemotePassword
+			}
+			var err error
+			address, err = git.ParseRemoteAddr(*opt.RemoteAddress, username, password)
+			if err == nil {
+				err = migrations.IsMigrateURLAllowed(address, ctx.ContextUser)
+			}
+			if err != nil {
+				HandleRemoteAddressError(ctx, err)
+				return
+			}
+		}
+		remoteAddress, err := giturl.StripCredentialsForStorage(*opt.RemoteAddress)
+		if err != nil {
+			HandleRemoteAddressError(ctx, err)
+			return
+		}
+		m.RemoteAddress = remoteAddress
+		remoteAddressForRefresh = address
+	}
 
 	if err := repo_model.UpdatePushMirror(ctx, m); err != nil {
 		ctx.APIErrorInternal(err)
 		return
 	}
-	if m.MirrorBranches != oldMirrorBranches {
+	if remoteAddressForRefresh != "" {
+		if err := mirror_service.RemovePushMirrorRemote(ctx, m); err != nil {
+			ctx.APIErrorInternal(err)
+			return
+		}
+		if err := mirror_service.AddPushMirrorRemote(ctx, m, remoteAddressForRefresh); err != nil {
+			ctx.APIErrorInternal(err)
+			return
+		}
+	} else if m.MirrorBranches != oldMirrorBranches {
 		if err := mirror_service.RefreshPushMirrorRemote(ctx, m); err != nil {
 			ctx.APIErrorInternal(err)
 			return

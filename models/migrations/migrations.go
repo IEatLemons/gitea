@@ -408,6 +408,7 @@ func prepareMigrationTasks() []*migration {
 		newMigration(331, "Add deploy stamp columns to push_mirror", v1_26.AddDeployStampToPushMirror),
 		newMigration(332, "Add mirror_branches column to push_mirror", v1_26.AddMirrorBranchesToPushMirror),
 		newMigration(333, "Add SSH mirror auth and mirror_sync_task table", v1_26.AddSSHCredentialsAndMirrorSyncTask),
+		newMigration(334, "Add record file columns to push_mirror", v1_26.AddRecordFileToPushMirror),
 	}
 	return preparedMigrations
 }

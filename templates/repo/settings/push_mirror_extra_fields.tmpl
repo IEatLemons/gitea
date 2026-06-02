@@ -1,0 +1,67 @@
+{{define "repo/settings/push_mirror_extra_fields"}}
+<details class="ui optional field">
+	<summary class="tw-p-1">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_section"}}</summary>
+	<div class="tw-p-1">
+		<div class="inline field">
+			<div class="ui checkbox">
+				<input id="push_mirror_deploy_stamp_enabled" name="push_mirror_deploy_stamp_enabled" type="checkbox" {{if .push_mirror_deploy_stamp_enabled}}checked{{end}}>
+				<label for="push_mirror_deploy_stamp_enabled">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_enable"}}</label>
+			</div>
+		</div>
+		<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_description"}}</p>
+		<div class="field">
+			<label for="push_mirror_deploy_stamp_branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_branches"}}</label>
+			<input id="push_mirror_deploy_stamp_branches" name="push_mirror_deploy_stamp_branches" value="{{.push_mirror_deploy_stamp_branches}}" placeholder="develop, main">
+		</div>
+		<div class="inline field">
+			<label for="push_mirror_deploy_stamp_author_name">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_name"}}</label>
+			<input id="push_mirror_deploy_stamp_author_name" name="push_mirror_deploy_stamp_author_name" value="{{.push_mirror_deploy_stamp_author_name}}">
+		</div>
+		<div class="inline field">
+			<label for="push_mirror_deploy_stamp_author_email">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_author_email"}}</label>
+			<input id="push_mirror_deploy_stamp_author_email" name="push_mirror_deploy_stamp_author_email" type="email" value="{{.push_mirror_deploy_stamp_author_email}}">
+		</div>
+		<div class="field">
+			<label for="push_mirror_deploy_stamp_commit_message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message"}}</label>
+			<input id="push_mirror_deploy_stamp_commit_message" name="push_mirror_deploy_stamp_commit_message" value="{{.push_mirror_deploy_stamp_commit_message}}" placeholder="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.deploy_stamp_commit_message_placeholder"}}">
+		</div>
+	</div>
+</details>
+<details class="ui optional field">
+	<summary class="tw-p-1">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_section"}}</summary>
+	<div class="tw-p-1">
+		<div class="inline field">
+			<div class="ui checkbox">
+				<input id="push_mirror_record_file_enabled" name="push_mirror_record_file_enabled" type="checkbox" {{if .push_mirror_record_file_enabled}}checked{{end}}>
+				<label for="push_mirror_record_file_enabled">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_enable"}}</label>
+			</div>
+		</div>
+		<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_description"}}</p>
+		<div class="field">
+			<label for="push_mirror_record_file_branches">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_branches"}}</label>
+			<input id="push_mirror_record_file_branches" name="push_mirror_record_file_branches" value="{{.push_mirror_record_file_branches}}" placeholder="develop, main">
+		</div>
+		<div class="field">
+			<label for="push_mirror_record_file_path">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_path"}}</label>
+			<input id="push_mirror_record_file_path" name="push_mirror_record_file_path" value="{{.push_mirror_record_file_path}}" placeholder=".mirror-record">
+		</div>
+		<div class="field">
+			<label for="push_mirror_record_file_template">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_template"}}</label>
+			<textarea id="push_mirror_record_file_template" name="push_mirror_record_file_template" rows="5">{{.push_mirror_record_file_template}}</textarea>
+			<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_template_desc"}}</p>
+		</div>
+		<div class="inline field">
+			<label for="push_mirror_record_file_author_name">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_author_name"}}</label>
+			<input id="push_mirror_record_file_author_name" name="push_mirror_record_file_author_name" value="{{.push_mirror_record_file_author_name}}">
+		</div>
+		<div class="inline field">
+			<label for="push_mirror_record_file_author_email">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_author_email"}}</label>
+			<input id="push_mirror_record_file_author_email" name="push_mirror_record_file_author_email" type="email" value="{{.push_mirror_record_file_author_email}}">
+		</div>
+		<div class="field">
+			<label for="push_mirror_record_file_commit_message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_commit_message"}}</label>
+			<input id="push_mirror_record_file_commit_message" name="push_mirror_record_file_commit_message" value="{{.push_mirror_record_file_commit_message}}" placeholder="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.record_file_commit_message_placeholder"}}">
+		</div>
+	</div>
+</details>
+{{end}}
