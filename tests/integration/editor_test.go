@@ -326,6 +326,23 @@ index 0000000000..bbbbbbbbbb
 		// By the way, test the "cherrypick" page: a successful revert redirects to the main branch
 		assert.Equal(t, "/user2/repo1/src/branch/master", test.RedirectURL(resp1))
 	})
+
+	t.Run("RepositoryIdentity", func(t *testing.T) {
+		defer tests.PrintCurrentTest(t)()
+
+		err := repo_model.UpdateRepositoryColsWithAutoTime(t.Context(), &repo_model.Repository{
+			ID:                  repo1.ID,
+			MergeCommitterName:  "Project Bot",
+			MergeCommitterEmail: "project-bot@example.com",
+		}, "merge_committer_name", "merge_committer_email")
+		require.NoError(t, err)
+
+		makeReq(t, "/user2/repo1/_edit/master/README.md", map[string]string{
+			"tree_path":    "README.md",
+			"content":      "for repository identity",
+			"commit_email": "user2@example.com",
+		}, "Project Bot", "project-bot@example.com")
+	})
 }
 
 func testForkToEditFile(t *testing.T, session *TestSession, user, owner, repo, branch, filePath string) {

@@ -4,6 +4,8 @@
 package repo
 
 import (
+	"strings"
+
 	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/log"
 	"code.gitea.io/gitea/modules/setting"
@@ -37,4 +39,28 @@ func WebGitOperationGetCommitChosenEmailIdentity(ctx *context.Context, email str
 		return &files_service.IdentityOptions{GitUserEmail: email}, true
 	}
 	return nil, false
+}
+
+// WebGitOperationGetCommitIdentity returns the Git identity selected for a web commit.
+func WebGitOperationGetCommitIdentity(ctx *context.Context, email string) (_ *files_service.IdentityOptions, valid bool) {
+	identity, valid := WebGitOperationGetCommitChosenEmailIdentity(ctx, email)
+	if !valid {
+		return nil, false
+	}
+
+	repo := ctx.Repo.Repository
+	if repo == nil || (strings.TrimSpace(repo.MergeCommitterName) == "" && strings.TrimSpace(repo.MergeCommitterEmail) == "") {
+		return identity, true
+	}
+
+	if identity == nil {
+		identity = &files_service.IdentityOptions{}
+	}
+	if name := strings.TrimSpace(repo.MergeCommitterName); name != "" {
+		identity.GitUserName = name
+	}
+	if email := strings.TrimSpace(repo.MergeCommitterEmail); email != "" {
+		identity.GitUserEmail = email
+	}
+	return identity, true
 }
