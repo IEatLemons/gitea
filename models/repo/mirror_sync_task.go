@@ -25,9 +25,9 @@ type MirrorSyncTask struct {
 	PushMirrorID int64  `xorm:"INDEX NOT NULL DEFAULT 0"`
 	TriggerType  string `xorm:"VARCHAR(16) NOT NULL"`
 	IsSucceed    bool
-	Stdout       string `xorm:"LONGTEXT"`
-	Stderr       string `xorm:"LONGTEXT"`
-	ErrorMessage string `xorm:"TEXT"`
+	Stdout       string             `xorm:"LONGTEXT"`
+	Stderr       string             `xorm:"LONGTEXT"`
+	ErrorMessage string             `xorm:"TEXT"`
 	StartedUnix  timeutil.TimeStamp `xorm:"INDEX"`
 	FinishedUnix timeutil.TimeStamp
 }

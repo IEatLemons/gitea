@@ -142,6 +142,67 @@ function initRepoSettingsOptions() {
   }));
 }
 
+function setPanelDisabled(panel: HTMLElement, disabled: boolean) {
+  panel.hidden = disabled;
+  for (const input of panel.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea')) {
+    input.disabled = disabled;
+  }
+}
+
+function updatePushMirrorAuthForm(form: HTMLFormElement) {
+  const editAuthTypeInput = form.querySelector<HTMLInputElement>('#push-mirror-edit-auth-type');
+  const editHostKeyPolicyInput = form.querySelector<HTMLInputElement>('#push-mirror-edit-ssh-host-key-policy-value');
+  const editAuthType = editAuthTypeInput?.value;
+  const editHostKeyPolicy = editHostKeyPolicyInput?.value;
+  const authType = editAuthType || form.querySelector<HTMLInputElement>('input[name="push_mirror_auth_type"]:checked')?.value || 'https';
+  const authTypeRadio = form.querySelector<HTMLInputElement>(`input[name="push_mirror_auth_type"][value="${authType}"]`);
+  if (authTypeRadio) authTypeRadio.checked = true;
+  if (editAuthTypeInput) editAuthTypeInput.value = '';
+
+  const hostKeyPolicySelect = form.querySelector<HTMLSelectElement>('select[name="push_mirror_ssh_host_key_policy"]');
+  if (editHostKeyPolicy && hostKeyPolicySelect) hostKeyPolicySelect.value = editHostKeyPolicy;
+  if (editHostKeyPolicyInput) editHostKeyPolicyInput.value = '';
+
+  for (const panel of form.querySelectorAll<HTMLElement>('.js-push-mirror-auth-panel')) {
+    setPanelDisabled(panel, panel.getAttribute('data-auth-type') !== authType);
+  }
+
+  const keyMode = form.querySelector<HTMLInputElement>('input[name="push_mirror_ssh_key_mode"]:checked')?.value || 'generate';
+  for (const panel of form.querySelectorAll<HTMLElement>('.js-push-mirror-ssh-key-mode-panel')) {
+    setPanelDisabled(panel, panel.getAttribute('data-ssh-key-mode') !== keyMode);
+  }
+
+  const publicKeyInput = form.querySelector<HTMLInputElement>('#push-mirror-edit-ssh-public-key');
+  const publicKeyPanel = form.querySelector<HTMLElement>('.js-push-mirror-current-public-key');
+  if (publicKeyPanel) setPanelDisabled(publicKeyPanel, authType !== 'ssh' || !publicKeyInput?.value);
+}
+
+function initRepoSettingsMirror() {
+  const pageContent = document.querySelector('.page-content.repository.settings.mirror');
+  if (!pageContent) return;
+
+  for (const form of pageContent.querySelectorAll<HTMLFormElement>('.js-push-mirror-form')) {
+    form.addEventListener('change', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.matches('input[name="push_mirror_auth_type"], input[name="push_mirror_ssh_key_mode"]')) {
+        updatePushMirrorAuthForm(form);
+      }
+    });
+    updatePushMirrorAuthForm(form);
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.show-modal[data-modal="#push-mirror-edit-modal"]')) return;
+    setTimeout(() => {
+      const form = document.querySelector<HTMLFormElement>('#push-mirror-edit-modal .js-push-mirror-form');
+      if (!form) return;
+      form.querySelector<HTMLInputElement>('#push-mirror-edit-ssh-key-mode-keep')!.checked = true;
+      form.querySelector<HTMLTextAreaElement>('#push-mirror-edit-ssh-private-key')!.value = '';
+      updatePushMirrorAuthForm(form);
+    }, 0);
+  });
+}
+
 export function initRepoSettings() {
   if (!document.querySelector('.page-content.repository.settings')) return;
   initRepoSettingsOptions();
@@ -149,5 +210,6 @@ export function initRepoSettings() {
   initRepoSettingsCollaboration();
   initRepoSettingsSearchTeamBox();
   initRepoSettingsGitHook();
+  initRepoSettingsMirror();
   initRepoSettingsBranchesDrag();
 }

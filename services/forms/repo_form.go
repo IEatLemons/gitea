@@ -89,25 +89,25 @@ func (f *MigrateRepoForm) Validate(req *http.Request, errs binding.Errors) bindi
 
 // RepoSettingForm form for changing repository settings
 type RepoSettingForm struct {
-	RepoName               string `binding:"Required;AlphaDashDot;MaxSize(100)"`
-	Description            string `binding:"MaxSize(2048)"`
-	Website                string `binding:"ValidUrl;MaxSize(1024)"`
-	Interval               string
-	MirrorAddress          string
-	MirrorUsername         string
-	MirrorPassword         string
-	LFS                    bool   `form:"mirror_lfs"`
-	LFSEndpoint            string `form:"mirror_lfs_endpoint"`
-	MirrorAuthType         string
-	MirrorSSHPrivateKey    string
-	MirrorSSHHostKeyPolicy string
+	RepoName                string `binding:"Required;AlphaDashDot;MaxSize(100)"`
+	Description             string `binding:"MaxSize(2048)"`
+	Website                 string `binding:"ValidUrl;MaxSize(1024)"`
+	Interval                string
+	MirrorAddress           string
+	MirrorUsername          string
+	MirrorPassword          string
+	LFS                     bool   `form:"mirror_lfs"`
+	LFSEndpoint             string `form:"mirror_lfs_endpoint"`
+	MirrorAuthType          string
+	MirrorSSHPrivateKey     string
+	MirrorSSHHostKeyPolicy  string
 	MirrorSSHKnownHostsLine string
-	PushMirrorID           int64
-	PushMirrorAddress      string
-	PushMirrorUsername     string
-	PushMirrorPassword     string
-	PushMirrorSyncOnCommit bool
-	PushMirrorInterval     string
+	PushMirrorID            int64
+	PushMirrorAddress       string
+	PushMirrorUsername      string
+	PushMirrorPassword      string
+	PushMirrorSyncOnCommit  bool
+	PushMirrorInterval      string
 	// Push mirror deploy stamp (trusted commit identity before mirror push)
 	PushMirrorDeployStampEnabled       bool
 	PushMirrorDeployStampBranches      string
@@ -123,6 +123,7 @@ type RepoSettingForm struct {
 	PushMirrorRecordFileCommitMessage  string
 	PushMirrorMirrorBranches           string
 	PushMirrorAuthType                 string
+	PushMirrorSSHKeyMode               string
 	PushMirrorSSHPrivateKey            string
 	PushMirrorSSHHostKeyPolicy         string
 	PushMirrorSSHKnownHostsLine        string

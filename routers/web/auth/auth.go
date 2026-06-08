@@ -148,7 +148,7 @@ func resetLocale(ctx *context.Context, u *user_model.User) error {
 	middleware.SetLocaleCookie(ctx.Resp, u.Language, 0)
 
 	if ctx.Locale.Language() != u.Language {
-		ctx.Locale = middleware.Locale(ctx.Resp, ctx.Req)
+		ctx.SetLocale(u.Language)
 	}
 
 	return nil
@@ -441,7 +441,7 @@ func handleSignInFull(ctx *context.Context, u *user_model.User, remember bool) {
 	middleware.SetLocaleCookie(ctx.Resp, u.Language, 0)
 
 	if ctx.Locale.Language() != u.Language {
-		ctx.Locale = middleware.Locale(ctx.Resp, ctx.Req)
+		ctx.SetLocale(u.Language)
 	}
 
 	// Register last login

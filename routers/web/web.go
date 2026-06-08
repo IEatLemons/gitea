@@ -159,6 +159,11 @@ func newWebAuthMiddleware() *AuthMiddleware {
 		if ctx.Doer == nil {
 			// ensure the session uid is deleted
 			_ = ctx.Session.Delete("uid")
+		} else if ctx.Doer.Language != "" && ctx.Req.URL.Query().Get("lang") == "" {
+			ctx.SetLocale(ctx.Doer.Language)
+			if middleware.GetSiteCookie(ctx.Req, "lang") != ctx.Doer.Language {
+				middleware.SetLocaleCookie(ctx.Resp, ctx.Doer.Language, 0)
+			}
 		}
 	}
 	return webAuth

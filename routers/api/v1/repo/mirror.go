@@ -410,17 +410,17 @@ func CreatePushMirror(ctx *context.APIContext, mirrorOption *api.CreatePushMirro
 	}
 
 	pushMirror := &repo_model.PushMirror{
-		RepoID:                   repo.ID,
-		Repo:                     repo,
-		RemoteName:               "remote_mirror_" + remoteSuffix,
-		Interval:                 interval,
-		SyncOnCommit:             mirrorOption.SyncOnCommit,
-		RemoteAddress:            remoteAddress,
-		MirrorBranches:           mirror_service.JoinMirrorBranches(mirrorBranchList),
-		AuthType:                 authType,
-		SSHPrivateKeyEncrypted:   encKey,
-		SSHHostKeyPolicy:         policy,
-		SSHKnownHostFingerprint:  strings.TrimSpace(mirrorOption.SSHKnownHostFingerprint),
+		RepoID:                  repo.ID,
+		Repo:                    repo,
+		RemoteName:              "remote_mirror_" + remoteSuffix,
+		Interval:                interval,
+		SyncOnCommit:            mirrorOption.SyncOnCommit,
+		RemoteAddress:           remoteAddress,
+		MirrorBranches:          mirror_service.JoinMirrorBranches(mirrorBranchList),
+		AuthType:                authType,
+		SSHPrivateKeyEncrypted:  encKey,
+		SSHHostKeyPolicy:        policy,
+		SSHKnownHostFingerprint: strings.TrimSpace(mirrorOption.SSHKnownHostFingerprint),
 	}
 	if authType != repo_model.MirrorAuthSSH {
 		pushMirror.SSHPrivateKeyEncrypted = ""

@@ -11,19 +11,19 @@ import (
 
 // Mirror settings
 var Mirror = struct {
-	Enabled            bool
-	DisableNewPull     bool
-	DisableNewPush     bool
-	DefaultInterval    time.Duration
-	MinInterval        time.Duration
-	SyncHistoryLimit   int `ini:"SYNC_HISTORY_LIMIT"`
+	Enabled          bool
+	DisableNewPull   bool
+	DisableNewPush   bool
+	DefaultInterval  time.Duration
+	MinInterval      time.Duration
+	SyncHistoryLimit int `ini:"SYNC_HISTORY_LIMIT"`
 }{
-	Enabled:            true,
-	DisableNewPull:     false,
-	DisableNewPush:     false,
-	MinInterval:        10 * time.Minute,
-	DefaultInterval:    8 * time.Hour,
-	SyncHistoryLimit:   50,
+	Enabled:          true,
+	DisableNewPull:   false,
+	DisableNewPush:   false,
+	MinInterval:      10 * time.Minute,
+	DefaultInterval:  8 * time.Hour,
+	SyncHistoryLimit: 50,
 }
 
 func loadMirrorFrom(rootCfg ConfigProvider) {

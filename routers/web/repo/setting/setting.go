@@ -512,6 +512,25 @@ func handleSettingsPostMirrorSyncReplay(ctx *context.Context) {
 	ctx.Redirect(mirrorSettingsLink(repo))
 }
 
+func normalizePushMirrorSSHKeyMode(form *forms.RepoSettingForm, allowKeep bool) string {
+	mode := strings.TrimSpace(form.PushMirrorSSHKeyMode)
+	switch mode {
+	case mirror_service.PushMirrorSSHKeyModeGenerate, mirror_service.PushMirrorSSHKeyModeManual:
+		return mode
+	case mirror_service.PushMirrorSSHKeyModeKeep:
+		if allowKeep {
+			return mode
+		}
+	}
+	if strings.TrimSpace(form.PushMirrorSSHPrivateKey) != "" {
+		return mirror_service.PushMirrorSSHKeyModeManual
+	}
+	if allowKeep {
+		return mirror_service.PushMirrorSSHKeyModeKeep
+	}
+	return mirror_service.PushMirrorSSHKeyModeGenerate
+}
+
 func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
@@ -571,6 +590,7 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 		return
 	}
 	remoteAddressForRefresh := ""
+	sshKeyChanged := false
 	if form.PushMirrorAuthType != "" {
 		m.AuthType = mirror_service.NormalizeMirrorAuthType(form.PushMirrorAuthType)
 	}
@@ -580,15 +600,38 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	if form.PushMirrorSSHKnownHostsLine != "" {
 		m.SSHKnownHostFingerprint = strings.TrimSpace(form.PushMirrorSSHKnownHostsLine)
 	}
-	if strings.TrimSpace(form.PushMirrorSSHPrivateKey) != "" {
-		encKey, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(form.PushMirrorSSHPrivateKey)
-		if err != nil {
-			ctx.ServerError("EncryptSSHPrivateKey", err)
-			return
-		}
-		m.SSHPrivateKeyEncrypted = encKey
-	}
 	if m.AuthType == repo_model.MirrorAuthSSH {
+		switch normalizePushMirrorSSHKeyMode(form, true) {
+		case mirror_service.PushMirrorSSHKeyModeGenerate:
+			privateKey, publicKey, err := mirror_service.GenerateSSHKeyPair()
+			if err != nil {
+				ctx.ServerError("GenerateSSHKeyPair", err)
+				return
+			}
+			encKey, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(privateKey)
+			if err != nil {
+				ctx.ServerError("EncryptSSHPrivateKey", err)
+				return
+			}
+			m.SSHPrivateKeyEncrypted = encKey
+			m.SSHPublicKey = publicKey
+			sshKeyChanged = true
+		case mirror_service.PushMirrorSSHKeyModeManual:
+			publicKey, err := mirror_service.DeriveSSHPublicKey(form.PushMirrorSSHPrivateKey)
+			if err != nil {
+				ctx.Data["Err_PushMirrorAuth"] = true
+				ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+				return
+			}
+			encKey, err := mirror_service.EncryptSSHPrivateKeyOrEmpty(form.PushMirrorSSHPrivateKey)
+			if err != nil {
+				ctx.ServerError("EncryptSSHPrivateKey", err)
+				return
+			}
+			m.SSHPrivateKeyEncrypted = encKey
+			m.SSHPublicKey = publicKey
+			sshKeyChanged = true
+		}
 		if err := mirror_service.ValidateSSHMirrorFields(m.SSHHostKeyPolicy, m.SSHKnownHostFingerprint, "", m.SSHPrivateKeyEncrypted); err != nil {
 			ctx.Data["Err_PushMirrorAuth"] = true
 			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
@@ -596,6 +639,7 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 		}
 	} else {
 		m.SSHPrivateKeyEncrypted = ""
+		m.SSHPublicKey = ""
 		m.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
 		m.SSHKnownHostFingerprint = ""
 	}
@@ -650,9 +694,14 @@ func handleSettingsPostPushMirrorUpdate(ctx *context.Context) {
 	// If we observed its implementation in the context of `push-mirror-sync` where it
 	// is evident that pushing to the queue is necessary for updates.
 	// So, there are updates within the given interval, it is necessary to update the queue accordingly.
-	if !ctx.FormBool("push_mirror_defer_sync") {
+	if !ctx.FormBool("push_mirror_defer_sync") && !sshKeyChanged {
 		// push_mirror_defer_sync is mainly for testing purpose, we do not really want to sync the push mirror immediately
 		mirror_service.AddPushMirrorToQueue(m.ID, repo_model.MirrorSyncTriggerManual)
+	}
+	if sshKeyChanged {
+		ctx.Flash.Success(ctx.Tr("repo.settings.mirror_settings.push_mirror.ssh_key_saved"))
+		ctx.Redirect(mirrorSettingsLink(repo))
+		return
 	}
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
 	ctx.Redirect(mirrorSettingsLink(repo))
@@ -720,6 +769,7 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 	authType := mirror_service.NormalizeMirrorAuthType(form.PushMirrorAuthType)
 	policy := mirror_service.NormalizeSSHHostKeyPolicy(form.PushMirrorSSHHostKeyPolicy)
 	var address string
+	var encKey, publicKey string
 	if authType == repo_model.MirrorAuthSSH {
 		address = strings.TrimSpace(form.PushMirrorAddress)
 		err = migrations.IsMigrateURLAllowed(address, ctx.Doer)
@@ -728,9 +778,30 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 			handleSettingRemoteAddrError(ctx, err, form)
 			return
 		}
-		if err := mirror_service.ValidateSSHMirrorFields(policy, form.PushMirrorSSHKnownHostsLine, form.PushMirrorSSHPrivateKey, ""); err != nil {
+		privateKey := strings.TrimSpace(form.PushMirrorSSHPrivateKey)
+		switch normalizePushMirrorSSHKeyMode(form, false) {
+		case mirror_service.PushMirrorSSHKeyModeGenerate:
+			privateKey, publicKey, err = mirror_service.GenerateSSHKeyPair()
+			if err != nil {
+				ctx.ServerError("GenerateSSHKeyPair", err)
+				return
+			}
+		case mirror_service.PushMirrorSSHKeyModeManual:
+			publicKey, err = mirror_service.DeriveSSHPublicKey(privateKey)
+			if err != nil {
+				ctx.Data["Err_PushMirrorAuth"] = true
+				ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+				return
+			}
+		}
+		if err := mirror_service.ValidateSSHMirrorFields(policy, form.PushMirrorSSHKnownHostsLine, privateKey, ""); err != nil {
 			ctx.Data["Err_PushMirrorAuth"] = true
 			ctx.RenderWithErrDeprecated(err.Error(), tplSettingsMirror, &form)
+			return
+		}
+		encKey, err = mirror_service.EncryptSSHPrivateKeyOrEmpty(privateKey)
+		if err != nil {
+			ctx.ServerError("EncryptSSHPrivateKey", err)
 			return
 		}
 	} else {
@@ -758,15 +829,6 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		return
 	}
 
-	var encKey string
-	if authType == repo_model.MirrorAuthSSH {
-		encKey, err = mirror_service.EncryptSSHPrivateKeyOrEmpty(form.PushMirrorSSHPrivateKey)
-		if err != nil {
-			ctx.ServerError("EncryptSSHPrivateKey", err)
-			return
-		}
-	}
-
 	mirrorBranchList, err := mirror_service.ParseMirrorBranches(form.PushMirrorMirrorBranches)
 	if err != nil {
 		ctx.Data["Err_PushMirrorMirrorBranches"] = true
@@ -784,11 +846,13 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		MirrorBranches:          mirror_service.JoinMirrorBranches(mirrorBranchList),
 		AuthType:                authType,
 		SSHPrivateKeyEncrypted:  encKey,
+		SSHPublicKey:            publicKey,
 		SSHHostKeyPolicy:        policy,
 		SSHKnownHostFingerprint: strings.TrimSpace(form.PushMirrorSSHKnownHostsLine),
 	}
 	if authType != repo_model.MirrorAuthSSH {
 		m.SSHPrivateKeyEncrypted = ""
+		m.SSHPublicKey = ""
 		m.SSHHostKeyPolicy = repo_model.MirrorSSHHostKeyFingerprint
 		m.SSHKnownHostFingerprint = ""
 	}
@@ -824,6 +888,11 @@ func handleSettingsPostPushMirrorAdd(ctx *context.Context) {
 		return
 	}
 
+	if authType == repo_model.MirrorAuthSSH {
+		ctx.Flash.Success(ctx.Tr("repo.settings.mirror_settings.push_mirror.ssh_key_saved"))
+		ctx.Redirect(mirrorSettingsLink(repo))
+		return
+	}
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
 	ctx.Redirect(mirrorSettingsLink(repo))
 }

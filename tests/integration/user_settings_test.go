@@ -9,6 +9,7 @@ import (
 
 	"code.gitea.io/gitea/modules/container"
 	"code.gitea.io/gitea/modules/setting"
+	"code.gitea.io/gitea/modules/translation"
 	"code.gitea.io/gitea/tests"
 
 	"github.com/stretchr/testify/assert"
@@ -224,6 +225,35 @@ func TestUserSettingsAppearance(t *testing.T) {
 	doc := NewHTMLParser(t, resp.Body)
 
 	assertNavbar(t, doc)
+}
+
+func TestUserSettingsUpdateLanguage(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+
+	session := loginUser(t, "user2")
+	req := NewRequestWithValues(t, "POST", "/user/settings/appearance/language", map[string]string{
+		"language": "zh-CN",
+	})
+	resp := session.MakeRequest(t, req, http.StatusSeeOther)
+	assert.Equal(t, "/user/settings/appearance", resp.Header().Get("Location"))
+	assert.Equal(t, "zh-CN", session.GetSiteCookie("lang"))
+
+	locale := translation.NewLocale("zh-CN")
+	flashMsg := session.GetCookieFlashMessage()
+	assert.Equal(t, locale.TrString("settings.update_language_success"), flashMsg.SuccessMsg)
+
+	req = NewRequest(t, "GET", "/user/settings/appearance")
+	resp = session.MakeRequest(t, req, http.StatusOK)
+	assert.Contains(t, resp.Body.String(), locale.TrString("settings.manage_themes"))
+
+	req = NewRequest(t, "GET", "/?lang=en-US")
+	session.MakeRequest(t, req, http.StatusOK)
+	assert.Equal(t, "en-US", session.GetSiteCookie("lang"))
+
+	req = NewRequest(t, "GET", "/user/settings/appearance")
+	resp = session.MakeRequest(t, req, http.StatusOK)
+	assert.Equal(t, "zh-CN", session.GetSiteCookie("lang"))
+	assert.Contains(t, resp.Body.String(), locale.TrString("settings.manage_themes"))
 }
 
 func TestUserSettingsSecurity(t *testing.T) {

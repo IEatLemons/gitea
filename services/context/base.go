@@ -190,6 +190,11 @@ func (b *Base) TrN(cnt any, key1, keyN string, args ...any) template.HTML {
 	return b.Locale.TrN(cnt, key1, keyN, args...)
 }
 
+func (b *Base) SetLocale(lang string) {
+	b.Locale = translation.NewLocale(lang)
+	b.SetContextValue(translation.ContextKey, b.Locale)
+}
+
 func NewBaseContext(resp http.ResponseWriter, req *http.Request) *Base {
 	reqCtx := reqctx.FromContext(req.Context())
 	b := &Base{

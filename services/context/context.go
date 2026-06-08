@@ -139,6 +139,11 @@ func NewWebContext(base *Base, render Render, session session.Store) *Context {
 	return ctx
 }
 
+func (ctx *Context) SetLocale(lang string) {
+	ctx.Base.SetLocale(lang)
+	ctx.TemplateContext["Locale"] = ctx.Locale
+}
+
 func ContexterInstallPage(data map[string]any) func(next http.Handler) http.Handler {
 	rnd := templates.PageRenderer()
 	return func(next http.Handler) http.Handler {

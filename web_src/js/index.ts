@@ -34,6 +34,7 @@ import {initRepoDiffView} from './features/repo-diff.ts';
 import {initOrgTeam} from './features/org-team.ts';
 import {initUserAuthWebAuthn, initUserAuthWebAuthnRegister} from './features/user-auth-webauthn.ts';
 import {initRepoReleaseNew} from './features/repo-release.ts';
+import {initRepoSettings} from './features/repo-settings.ts';
 import {initRepoEditor} from './features/repo-editor.ts';
 import {initCompSearchUserBox} from './features/comp/SearchUserBox.ts';
 import {initInstall} from './features/install.ts';
@@ -136,6 +137,7 @@ const initPerformanceTracer = callInitFunctions([
   initRepoProjectsView,
   initRepoPullRequestReview,
   initRepoReleaseNew,
+  initRepoSettings,
   initRepoTopicBar,
   initRepoViewFileTree,
   initRepoWikiForm,

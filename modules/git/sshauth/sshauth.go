@@ -12,15 +12,16 @@ import (
 	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/modules/util"
+
 	"golang.org/x/crypto/ssh"
 )
 
 // Config holds everything needed to run git over SSH with a deploy key.
 type Config struct {
-	PrivateKeyPEM         string
-	HostKeyPolicy         string
-	KnownHostFingerprint  string
-	RemoteURL             string
+	PrivateKeyPEM        string
+	HostKeyPolicy        string
+	KnownHostFingerprint string
+	RemoteURL            string
 }
 
 // ValidateKnownHostsLine checks a single OpenSSH known_hosts line.

@@ -2,10 +2,12 @@
 	<div class="header">
 		{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.edit_sync_time"}}
 	</div>
-	<form class="content ui form ignore-dirty" method="post">
+	<form class="content ui form ignore-dirty js-push-mirror-form" method="post">
 		<input type="hidden" name="action" value="push-mirror-update">
 		<input type="hidden" name="repo_name" value="{{.Repository.Name}}">
 		<input type="hidden" name="push_mirror_id" id="push-mirror-edit-id">
+		<input type="hidden" id="push-mirror-edit-auth-type">
+		<input type="hidden" id="push-mirror-edit-ssh-host-key-policy-value">
 		<div class="field">
 			<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.mirrored_repository"}}</label>
 			<span id="push-mirror-edit-address"></span>
@@ -14,36 +16,90 @@
 			<label for="push-mirror-edit-address-input">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.remote_url"}}</label>
 			<input id="push-mirror-edit-address-input" name="push_mirror_address">
 		</div>
-		<div class="inline field">
-			<label for="push-mirror-edit-auth-type">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type"}}</label>
-			<input id="push-mirror-edit-auth-type" name="push_mirror_auth_type">
+		<div class="field">
+			<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type"}}</label>
+			<div class="inline fields">
+				<div class="field">
+					<div class="ui radio checkbox">
+						<input id="push-mirror-edit-auth-type-https" name="push_mirror_auth_type" type="radio" value="https" checked>
+						<label for="push-mirror-edit-auth-type-https">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type_https"}}</label>
+					</div>
+				</div>
+				<div class="field">
+					<div class="ui radio checkbox">
+						<input id="push-mirror-edit-auth-type-ssh" name="push_mirror_auth_type" type="radio" value="ssh">
+						<label for="push-mirror-edit-auth-type-ssh">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type_ssh"}}</label>
+					</div>
+				</div>
+			</div>
 		</div>
-		<details class="ui optional field">
-			<summary class="tw-p-1">{{ctx.Locale.Tr "repo.need_auth"}}</summary>
-			<div class="tw-p-1">
-				<div class="inline field">
+		<div class="js-push-mirror-auth-panel" data-auth-type="https">
+			<div class="two fields">
+				<div class="field">
 					<label for="push-mirror-edit-username">{{ctx.Locale.Tr "username"}}</label>
 					<input id="push-mirror-edit-username" name="push_mirror_username">
 				</div>
-				<div class="inline field">
+				<div class="field">
 					<label for="push-mirror-edit-password">{{ctx.Locale.Tr "password"}}</label>
 					<input id="push-mirror-edit-password" name="push_mirror_password" type="password" autocomplete="off">
 				</div>
-				<div class="field">
-					<label for="push-mirror-edit-ssh-private-key">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key"}}</label>
-					<textarea id="push-mirror-edit-ssh-private-key" name="push_mirror_ssh_private_key" rows="5"></textarea>
-					<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key_update_desc"}}</p>
+			</div>
+			<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.auth_type_https_desc"}}</p>
+		</div>
+		<div class="js-push-mirror-auth-panel" data-auth-type="ssh">
+			<div class="field js-push-mirror-current-public-key">
+				<label for="push-mirror-edit-ssh-public-key">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_public_key"}}</label>
+				<div class="ui action input tw-w-full">
+					<input id="push-mirror-edit-ssh-public-key" readonly>
+					<button type="button" class="ui icon button" data-clipboard-target="#push-mirror-edit-ssh-public-key" data-tooltip-content="{{ctx.Locale.Tr "copy"}}">{{svg "octicon-copy" 14}}</button>
 				</div>
-				<div class="inline field">
+				<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_public_key_desc"}}</p>
+			</div>
+			<div class="field">
+				<label>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_key_mode"}}</label>
+				<div class="grouped fields">
+					<div class="field">
+						<div class="ui radio checkbox">
+							<input id="push-mirror-edit-ssh-key-mode-keep" name="push_mirror_ssh_key_mode" type="radio" value="keep" checked>
+							<label for="push-mirror-edit-ssh-key-mode-keep">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_key_mode_keep"}}</label>
+						</div>
+					</div>
+					<div class="field">
+						<div class="ui radio checkbox">
+							<input id="push-mirror-edit-ssh-key-mode-generate" name="push_mirror_ssh_key_mode" type="radio" value="generate">
+							<label for="push-mirror-edit-ssh-key-mode-generate">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_key_mode_generate"}}</label>
+						</div>
+					</div>
+					<div class="field">
+						<div class="ui radio checkbox">
+							<input id="push-mirror-edit-ssh-key-mode-manual" name="push_mirror_ssh_key_mode" type="radio" value="manual">
+							<label for="push-mirror-edit-ssh-key-mode-manual">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_key_mode_manual"}}</label>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="ui warning message js-push-mirror-ssh-key-mode-panel" data-ssh-key-mode="generate">
+				{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_key_mode_rotate_desc"}}
+			</div>
+			<div class="field js-push-mirror-ssh-key-mode-panel" data-ssh-key-mode="manual">
+				<label for="push-mirror-edit-ssh-private-key">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key"}}</label>
+				<textarea id="push-mirror-edit-ssh-private-key" name="push_mirror_ssh_private_key" rows="5"></textarea>
+				<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_private_key_update_desc"}}</p>
+			</div>
+			<div class="two fields">
+				<div class="field">
 					<label for="push-mirror-edit-ssh-host-key-policy">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy"}}</label>
-					<input id="push-mirror-edit-ssh-host-key-policy" name="push_mirror_ssh_host_key_policy" value="fingerprint">
+					<select id="push-mirror-edit-ssh-host-key-policy" name="push_mirror_ssh_host_key_policy">
+						<option value="fingerprint">fingerprint</option>
+						<option value="accept_new">accept_new</option>
+					</select>
 				</div>
 				<div class="field">
 					<label for="push-mirror-edit-ssh-known-hosts-line">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_known_hosts_line"}}</label>
 					<input id="push-mirror-edit-ssh-known-hosts-line" name="push_mirror_ssh_known_hosts_line">
 				</div>
 			</div>
-		</details>
+		</div>
 		<div class="field">
 			<label for="push-mirror-edit-interval">{{ctx.Locale.Tr "repo.mirror_interval" .MinimumMirrorInterval}}</label>
 			<input id="push-mirror-edit-interval" name="push_mirror_interval" class="tw-w-auto">

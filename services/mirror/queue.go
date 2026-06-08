@@ -25,7 +25,7 @@ const (
 // SyncRequest for the mirror queue
 type SyncRequest struct {
 	Type        SyncType
-	ReferenceID int64 // RepoID for pull mirror, MirrorID for push mirror
+	ReferenceID int64  // RepoID for pull mirror, MirrorID for push mirror
 	TriggerType string // repo.MirrorSyncTrigger*; empty treated as scheduled in handler
 }
 

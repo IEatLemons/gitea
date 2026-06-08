@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	repo_model "code.gitea.io/gitea/models/repo"
-	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/git/sshauth"
+	giturl "code.gitea.io/gitea/modules/git/url"
 	"code.gitea.io/gitea/modules/proxy"
 	"code.gitea.io/gitea/modules/secret"
 	"code.gitea.io/gitea/modules/setting"
