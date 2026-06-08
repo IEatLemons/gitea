@@ -21,11 +21,16 @@
 					<input id="full_name" name="full_name" value="{{.SignedUser.FullName}}" {{if ($.UserDisabledFeatures.Contains "change_full_name")}}disabled{{end}} maxlength="100">
 					{{if ($.UserDisabledFeatures.Contains "change_full_name")}}
 					<p class="help tw-text-blue">{{ctx.Locale.Tr "settings.password_full_name_disabled"}}</p>
+					{{else}}
+					<p class="help">{{ctx.Locale.Tr "settings.full_name_commit_name_help"}}</p>
 					{{end}}
 				</div>
 				<div class="field {{if .Err_Email}}error{{end}}">
-					<label>{{ctx.Locale.Tr "email"}}</label>
-					<p id="signed-user-email">{{.SignedUser.Email}}</p>
+					<label for="signed-user-email">{{ctx.Locale.Tr "email"}}</label>
+					<input id="signed-user-email" name="email" type="email" value="{{.SignedUser.Email}}" required {{if ($.UserDisabledFeatures.Contains "manage_credentials")}}disabled{{end}} maxlength="254">
+					{{if ($.UserDisabledFeatures.Contains "manage_credentials")}}
+					<p class="help tw-text-blue">{{ctx.Locale.Tr "settings.password_email_disabled"}}</p>
+					{{end}}
 				</div>
 				<div class="field {{if .Err_Description}}error{{end}}">
 					{{/* it is rendered as markdown, but the length is limited, so at the moment we do not use the markdown editor here */}}

@@ -66,6 +66,25 @@ func ProfilePost(ctx *context.Context) {
 
 	form := web.GetForm(ctx).(*forms.UpdateProfileForm)
 
+	if form.Email != "" && !strings.EqualFold(form.Email, ctx.Doer.Email) {
+		if user_model.IsFeatureDisabledWithLoginType(ctx.Doer, setting.UserFeatureManageCredentials) {
+			ctx.Flash.Error(ctx.Tr("settings.password_email_disabled"))
+			ctx.Redirect(setting.AppSubURL + "/user/settings")
+			return
+		}
+		if err := user_service.ReplacePrimaryEmailAddress(ctx, ctx.Doer, form.Email); err != nil {
+			switch {
+			case user_model.IsErrEmailAlreadyUsed(err):
+				ctx.RenderWithErrDeprecated(ctx.Tr("form.email_been_used"), tplSettingsProfile, &form)
+			case user_model.IsErrEmailCharIsNotSupported(err), user_model.IsErrEmailInvalid(err):
+				ctx.RenderWithErrDeprecated(ctx.Tr("form.email_invalid"), tplSettingsProfile, &form)
+			default:
+				ctx.ServerError("ReplacePrimaryEmailAddress", err)
+			}
+			return
+		}
+	}
+
 	if form.Name != "" {
 		if user_model.IsFeatureDisabledWithLoginType(ctx.Doer, setting.UserFeatureChangeUsername) {
 			ctx.Flash.Error(ctx.Tr("user.form.change_username_disabled"))

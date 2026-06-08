@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 
+	"code.gitea.io/gitea/models/unittest"
+	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/container"
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/modules/translation"
@@ -51,6 +53,60 @@ func WithDisabledFeatures(t *testing.T, features ...string) {
 		setting.Admin.UserDisabledFeatures = global
 		setting.Admin.ExternalUserDisableFeatures = user
 	})
+}
+
+func TestUserSettingsProfileUpdateEmailAndFullName(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+
+	session := loginUser(t, "user2")
+	req := NewRequestWithValues(t, "POST", "/user/settings", map[string]string{
+		"email":      "user2-new@example.com",
+		"full_name":  "Web Committer",
+		"visibility": "0",
+	})
+	session.MakeRequest(t, req, http.StatusSeeOther)
+
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
+	assert.Equal(t, "user2-new@example.com", user.Email)
+	assert.Equal(t, "Web Committer", user.FullName)
+	assert.Equal(t, "Web Committer", user.GitName())
+
+	primary, err := user_model.GetPrimaryEmailAddressOfUser(t.Context(), user.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "user2-new@example.com", primary.Email)
+	assert.True(t, primary.IsActivated)
+}
+
+func TestUserSettingsProfileUpdateEmailDuplicate(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+
+	session := loginUser(t, "user2")
+	req := NewRequestWithValues(t, "POST", "/user/settings", map[string]string{
+		"email":      "user101@example.com",
+		"visibility": "0",
+	})
+	resp := session.MakeRequest(t, req, http.StatusOK)
+
+	assert.Contains(t, resp.Body.String(), "email address is already used")
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
+	assert.Equal(t, "user2@example.com", user.Email)
+}
+
+func TestUserSettingsProfileUpdateEmailCredentialsDisabled(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+
+	WithDisabledFeatures(t, setting.UserFeatureManageCredentials)
+	session := loginUser(t, "user2")
+	req := NewRequestWithValues(t, "POST", "/user/settings", map[string]string{
+		"email":      "user2-new@example.com",
+		"visibility": "0",
+	})
+	session.MakeRequest(t, req, http.StatusSeeOther)
+
+	flashMsg := session.GetCookieFlashMessage()
+	assert.Equal(t, "You are not allowed to change your email address. Please contact your site administrator for more details.", flashMsg.ErrorMsg)
+	user := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
+	assert.Equal(t, "user2@example.com", user.Email)
 }
 
 func TestUserSettingsAccount(t *testing.T) {
