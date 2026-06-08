@@ -294,6 +294,15 @@ func handleSettingsPostUpdate(ctx *context.Context) {
 	repo.LowerName = strings.ToLower(newRepoName)
 	repo.Description = form.Description
 	repo.Website = form.Website
+	repo.MergeCommitterName = strings.TrimSpace(form.MergeCommitterName)
+	repo.MergeCommitterEmail = strings.TrimSpace(form.MergeCommitterEmail)
+	if repo.MergeCommitterEmail != "" {
+		if err := user_model.ValidateEmailForAdmin(repo.MergeCommitterEmail); err != nil {
+			ctx.Data["Err_MergeCommitterEmail"] = true
+			ctx.RenderWithErrDeprecated(ctx.Tr("form.email_invalid"), tplSettingsOptions, &form)
+			return
+		}
+	}
 	repo.IsTemplate = form.Template
 
 	if err := repo_service.UpdateRepository(ctx, repo, false); err != nil {

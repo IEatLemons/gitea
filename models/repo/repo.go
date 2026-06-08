@@ -164,6 +164,8 @@ type Repository struct {
 	OriginalURL         string             `xorm:"VARCHAR(2048)"`
 	DefaultBranch       string
 	DefaultWikiBranch   string
+	MergeCommitterName  string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
+	MergeCommitterEmail string `xorm:"VARCHAR(255) NOT NULL DEFAULT ''"`
 
 	NumWatches          int
 	NumStars            int
@@ -355,6 +357,22 @@ func (repo *Repository) LoadAttributes(ctx context.Context) error {
 // FullName returns the repository full name
 func (repo *Repository) FullName() string {
 	return repo.OwnerName + "/" + repo.Name
+}
+
+// NewMergeCommitterSig returns the Git identity used for server-side merge commits.
+// Repository-level fields override the acting user's identity when configured.
+func (repo *Repository) NewMergeCommitterSig(doer *user_model.User) *git.Signature {
+	sig := doer.NewGitSig()
+	if repo == nil {
+		return sig
+	}
+	if name := strings.TrimSpace(repo.MergeCommitterName); name != "" {
+		sig.Name = name
+	}
+	if email := strings.TrimSpace(repo.MergeCommitterEmail); email != "" {
+		sig.Email = email
+	}
+	return sig
 }
 
 // HTMLURL returns the repository HTML URL

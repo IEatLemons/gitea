@@ -175,6 +175,43 @@ func TestRepoSettingPushMirrorUpdate(t *testing.T) {
 	pushMirror := unittest.AssertExistsAndLoadBean(t, &repo_model.PushMirror{ID: repo2PushMirrorID})
 	assert.Equal(t, 10*time.Minute, pushMirror.Interval)
 
+	req := NewRequestWithValues(t, "POST", "/user2/repo2/settings", map[string]string{
+		"action":                                  "push-mirror-update",
+		"push_mirror_id":                          strconv.FormatInt(repo2PushMirrorID, 10),
+		"push_mirror_interval":                    "10m0s",
+		"push_mirror_sync_on_commit":              "on",
+		"push_mirror_mirror_branches":             "master",
+		"push_mirror_deploy_stamp_enabled":        "on",
+		"push_mirror_deploy_stamp_branches":       "master",
+		"push_mirror_deploy_stamp_author_name":    "Deploy Bot",
+		"push_mirror_deploy_stamp_author_email":   "deploy@example.com",
+		"push_mirror_deploy_stamp_commit_message": "chore: deploy stamp",
+		"push_mirror_record_file_enabled":         "on",
+		"push_mirror_record_file_branches":        "master",
+		"push_mirror_record_file_path":            ".mirror-record",
+		"push_mirror_record_file_template":        "{{.Repo}} {{.Branch}}",
+		"push_mirror_record_file_author_name":     "Mirror Bot",
+		"push_mirror_record_file_author_email":    "mirror@example.com",
+		"push_mirror_record_file_commit_message":  "chore: update mirror record",
+		"push_mirror_defer_sync":                  "true",
+	})
+	session.MakeRequest(t, req, http.StatusSeeOther)
+	pushMirror = unittest.AssertExistsAndLoadBean(t, &repo_model.PushMirror{ID: repo2PushMirrorID})
+	assert.True(t, pushMirror.SyncOnCommit)
+	assert.Equal(t, "master", pushMirror.MirrorBranches)
+	assert.True(t, pushMirror.DeployStampEnabled)
+	assert.Equal(t, "master", pushMirror.DeployStampBranches)
+	assert.Equal(t, "Deploy Bot", pushMirror.DeployStampAuthorName)
+	assert.Equal(t, "deploy@example.com", pushMirror.DeployStampAuthorEmail)
+	assert.Equal(t, "chore: deploy stamp", pushMirror.DeployStampCommitMessage)
+	assert.True(t, pushMirror.RecordFileEnabled)
+	assert.Equal(t, "master", pushMirror.RecordFileBranches)
+	assert.Equal(t, ".mirror-record", pushMirror.RecordFilePath)
+	assert.Equal(t, "{{.Repo}} {{.Branch}}", pushMirror.RecordFileTemplate)
+	assert.Equal(t, "Mirror Bot", pushMirror.RecordFileAuthorName)
+	assert.Equal(t, "mirror@example.com", pushMirror.RecordFileAuthorEmail)
+	assert.Equal(t, "chore: update mirror record", pushMirror.RecordFileCommitMessage)
+
 	// avoid updating repo2 push mirror from repo1
 	assert.False(t, doUpdatePushMirror(t, session, "user2", "repo1", repo2PushMirrorID, "20m0s"))
 	pushMirror = unittest.AssertExistsAndLoadBean(t, &repo_model.PushMirror{ID: repo2PushMirrorID})

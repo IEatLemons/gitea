@@ -370,6 +370,18 @@
 							</div>
 						</div>
 						<div class="field">
+							<label>{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_identity"}}</label>
+							<div class="two fields">
+								<div class="field">
+									<input name="merge_committer_name" value="{{.Repository.MergeCommitterName}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_name"}}">
+								</div>
+								<div class="field {{if .Err_MergeCommitterEmail}}error{{end}}">
+									<input name="merge_committer_email" type="email" value="{{.Repository.MergeCommitterEmail}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_email"}}">
+								</div>
+							</div>
+							<p class="help">{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_identity_desc"}}</p>
+						</div>
+						<div class="field">
 							<div class="ui checkbox">
 								<input name="default_allow_maintainer_edit" type="checkbox" {{if or (not $pullRequestEnabled) ($prUnit.PullRequestsConfig.DefaultAllowMaintainerEdit)}}checked{{end}}>
 								<label>{{ctx.Locale.Tr "repo.settings.pulls.default_allow_edits_from_maintainers"}}</label>

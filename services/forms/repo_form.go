@@ -92,6 +92,8 @@ type RepoSettingForm struct {
 	RepoName                string `binding:"Required;AlphaDashDot;MaxSize(100)"`
 	Description             string `binding:"MaxSize(2048)"`
 	Website                 string `binding:"ValidUrl;MaxSize(1024)"`
+	MergeCommitterName      string
+	MergeCommitterEmail     string
 	Interval                string
 	MirrorAddress           string
 	MirrorUsername          string

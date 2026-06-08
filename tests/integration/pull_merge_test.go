@@ -128,6 +128,34 @@ func TestPullMerge(t *testing.T) {
 	})
 }
 
+func TestRepoSettingMergeCommitterIdentity(t *testing.T) {
+	onGiteaRun(t, func(t *testing.T, _ *url.URL) {
+		doer := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user1"})
+		repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user2", Name: "repo1"})
+		session := loginUser(t, doer.Name)
+
+		expectedUserSig := doer.NewGitSig()
+		fallbackSig := repo.NewMergeCommitterSig(doer)
+		assert.Equal(t, expectedUserSig.Name, fallbackSig.Name)
+		assert.Equal(t, expectedUserSig.Email, fallbackSig.Email)
+
+		req := NewRequestWithValues(t, "POST", "/user2/repo1/settings", map[string]string{
+			"action":                "update",
+			"repo_name":             repo.Name,
+			"merge_committer_name":  " Project Bot ",
+			"merge_committer_email": "project-bot@example.com",
+		})
+		session.MakeRequest(t, req, http.StatusSeeOther)
+		repo = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
+		assert.Equal(t, "Project Bot", repo.MergeCommitterName)
+		assert.Equal(t, "project-bot@example.com", repo.MergeCommitterEmail)
+
+		projectSig := repo.NewMergeCommitterSig(doer)
+		assert.Equal(t, "Project Bot", projectSig.Name)
+		assert.Equal(t, "project-bot@example.com", projectSig.Email)
+	})
+}
+
 func TestPullRebase(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, giteaURL *url.URL) {
 		hookTasks, err := webhook.HookTasks(t.Context(), 1, 1) // Retrieve previous hook number

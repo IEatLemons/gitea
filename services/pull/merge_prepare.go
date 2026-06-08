@@ -100,7 +100,7 @@ func createTemporaryRepoForMerge(ctx context.Context, pr *issues_model.PullReque
 		return nil, nil, err
 	}
 
-	mergeCtx.sig = doer.NewGitSig()
+	mergeCtx.sig = pr.BaseRepo.NewMergeCommitterSig(doer)
 	mergeCtx.committer = mergeCtx.sig
 
 	gitRepo, err := gitrepo.OpenRepository(ctx, pr.BaseRepo)
