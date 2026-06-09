@@ -411,6 +411,7 @@ func prepareMigrationTasks() []*migration {
 		newMigration(334, "Add record file columns to push_mirror", v1_26.AddRecordFileToPushMirror),
 		newMigration(335, "Add SSH public key column to push_mirror", v1_26.AddSSHPublicKeyToPushMirror),
 		newMigration(336, "Add merge committer identity to repository", v1_26.AddMergeCommitterToRepository),
+		newMigration(337, "Add user repository web commit identity", v1_26.AddUserCommitIdentity),
 	}
 	return preparedMigrations
 }

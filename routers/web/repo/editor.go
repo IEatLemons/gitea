@@ -147,7 +147,11 @@ func prepareEditorCommitSubmittedForm[T forms.CommitCommonFormInterface](ctx *co
 	}
 
 	// Committer user info
-	gitCommitter, valid := WebGitOperationGetCommitIdentity(ctx, commonForm.CommitEmail)
+	gitCommitter, valid, err := WebGitOperationGetCommitIdentity(ctx, commonForm.CommitEmail)
+	if err != nil {
+		ctx.ServerError("WebGitOperationGetCommitIdentity", err)
+		return nil
+	}
 	if !valid {
 		ctx.JSONError(ctx.Tr("repo.editor.invalid_commit_email"))
 		return nil

@@ -104,6 +104,15 @@ func SettingsCtxData(ctx *context.Context) {
 	}
 	ctx.Data["PushMirrorSyncTasksByID"] = pushMirrorSyncTasks
 
+	userCommitIdentity := &repo_model.RepoUserCommitIdentity{}
+	if identity, has, err := repo_model.GetUserCommitIdentity(ctx, ctx.Repo.Repository.ID, ctx.Doer.ID); err != nil {
+		ctx.ServerError("GetUserCommitIdentity", err)
+		return
+	} else if has {
+		userCommitIdentity = identity
+	}
+	ctx.Data["RepoUserCommitIdentity"] = userCommitIdentity
+
 	ctx.Data["PullMirrorSyncTasks"] = []*repo_model.MirrorSyncTask(nil)
 	if ctx.Repo.Repository.IsMirror {
 		if _, err := repo_model.GetMirrorByRepoID(ctx, ctx.Repo.Repository.ID); err == nil {
@@ -294,15 +303,6 @@ func handleSettingsPostUpdate(ctx *context.Context) {
 	repo.LowerName = strings.ToLower(newRepoName)
 	repo.Description = form.Description
 	repo.Website = form.Website
-	repo.MergeCommitterName = strings.TrimSpace(form.MergeCommitterName)
-	repo.MergeCommitterEmail = strings.TrimSpace(form.MergeCommitterEmail)
-	if repo.MergeCommitterEmail != "" {
-		if err := user_model.ValidateEmailForAdmin(repo.MergeCommitterEmail); err != nil {
-			ctx.Data["Err_MergeCommitterEmail"] = true
-			ctx.RenderWithErrDeprecated(ctx.Tr("form.email_invalid"), tplSettingsOptions, &form)
-			return
-		}
-	}
 	repo.IsTemplate = form.Template
 
 	if err := repo_service.UpdateRepository(ctx, repo, false); err != nil {
@@ -313,6 +313,31 @@ func handleSettingsPostUpdate(ctx *context.Context) {
 
 	ctx.Flash.Success(ctx.Tr("repo.settings.update_settings_success"))
 	ctx.Redirect(repo.Link() + "/settings")
+}
+
+func validateUserCommitIdentity(ctx *context.Context, form *forms.RepoSettingForm) bool {
+	commitEmail := strings.TrimSpace(form.MergeCommitterEmail)
+	if commitEmail == "" {
+		return true
+	}
+	if err := user_model.ValidateEmailForAdmin(commitEmail); err != nil {
+		ctx.Data["Err_MergeCommitterEmail"] = true
+		ctx.Data["RepoUserCommitIdentity"] = &repo_model.RepoUserCommitIdentity{
+			CommitName:  strings.TrimSpace(form.MergeCommitterName),
+			CommitEmail: commitEmail,
+		}
+		ctx.RenderWithErrDeprecated(ctx.Tr("form.email_invalid"), tplSettingsOptions, form)
+		return false
+	}
+	return true
+}
+
+func saveUserCommitIdentity(ctx *context.Context, form *forms.RepoSettingForm) bool {
+	if err := repo_model.SetUserCommitIdentity(ctx, ctx.Repo.Repository.ID, ctx.Doer.ID, form.MergeCommitterName, form.MergeCommitterEmail); err != nil {
+		ctx.ServerError("SetUserCommitIdentity", err)
+		return false
+	}
+	return true
 }
 
 func handleSettingsPostMirror(ctx *context.Context) {
@@ -928,6 +953,10 @@ func handleSettingsPostAdvanced(ctx *context.Context) {
 	// as an error on the UI for this action
 	ctx.Data["Err_RepoName"] = nil
 
+	if !validateUserCommitIdentity(ctx, form) {
+		return
+	}
+
 	if repo.CloseIssuesViaCommitInAnyBranch != form.EnableCloseIssuesViaCommitInAnyBranch {
 		repo.CloseIssuesViaCommitInAnyBranch = form.EnableCloseIssuesViaCommitInAnyBranch
 		repoChanged = true
@@ -1058,6 +1087,9 @@ func handleSettingsPostAdvanced(ctx *context.Context) {
 			ctx.ServerError("UpdateRepository", err)
 			return
 		}
+	}
+	if !saveUserCommitIdentity(ctx, form) {
+		return
 	}
 	log.Trace("Repository advanced settings updated: %s/%s", ctx.Repo.Owner.Name, repo.Name)
 

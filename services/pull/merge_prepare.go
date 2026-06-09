@@ -100,7 +100,11 @@ func createTemporaryRepoForMerge(ctx context.Context, pr *issues_model.PullReque
 		return nil, nil, err
 	}
 
-	mergeCtx.sig = pr.BaseRepo.NewMergeCommitterSig(doer)
+	mergeCtx.sig, err = repo_model.NewUserCommitterSig(ctx, pr.BaseRepo, doer)
+	if err != nil {
+		defer cancel()
+		return nil, nil, fmt.Errorf("failed to get user commit identity for pr[%d]: %w", pr.ID, err)
+	}
 	mergeCtx.committer = mergeCtx.sig
 
 	gitRepo, err := gitrepo.OpenRepository(ctx, pr.BaseRepo)

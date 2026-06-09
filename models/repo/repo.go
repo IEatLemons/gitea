@@ -359,23 +359,14 @@ func (repo *Repository) FullName() string {
 	return repo.OwnerName + "/" + repo.Name
 }
 
-// NewWebCommitterSig returns the Git identity used for repository web commits.
-// Repository-level fields override the acting user's identity when configured.
+// NewWebCommitterSig returns the acting user's Git identity.
+// Use NewUserCommitterSig when repository-specific user overrides should apply.
 func (repo *Repository) NewWebCommitterSig(doer *user_model.User) *git.Signature {
-	sig := doer.NewGitSig()
-	if repo == nil {
-		return sig
-	}
-	if name := strings.TrimSpace(repo.MergeCommitterName); name != "" {
-		sig.Name = name
-	}
-	if email := strings.TrimSpace(repo.MergeCommitterEmail); email != "" {
-		sig.Email = email
-	}
-	return sig
+	return doer.NewGitSig()
 }
 
-// NewMergeCommitterSig returns the Git identity used for server-side merge commits.
+// NewMergeCommitterSig returns the acting user's Git identity.
+// Use NewUserCommitterSig when repository-specific user overrides should apply.
 func (repo *Repository) NewMergeCommitterSig(doer *user_model.User) *git.Signature {
 	return repo.NewWebCommitterSig(doer)
 }

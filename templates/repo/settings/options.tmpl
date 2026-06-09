@@ -373,10 +373,10 @@
 							<label>{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_identity"}}</label>
 							<div class="two fields">
 								<div class="field">
-									<input name="merge_committer_name" value="{{.Repository.MergeCommitterName}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_name"}}">
+									<input name="merge_committer_name" value="{{.RepoUserCommitIdentity.CommitName}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_name"}}">
 								</div>
 								<div class="field {{if .Err_MergeCommitterEmail}}error{{end}}">
-									<input name="merge_committer_email" type="email" value="{{.Repository.MergeCommitterEmail}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_email"}}">
+									<input name="merge_committer_email" type="email" value="{{.RepoUserCommitIdentity.CommitEmail}}" placeholder="{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_email"}}">
 								</div>
 							</div>
 							<p class="help">{{ctx.Locale.Tr "repo.settings.pulls.merge_committer_identity_desc"}}</p>

@@ -101,7 +101,9 @@ func TestPullMerge(t *testing.T) {
 		testRepoFork(t, session, "user2", "repo1", "user1", "repo1", "")
 		testEditFile(t, session, "user1", "repo1", "master", "README.md", "Hello, World (Edited)\n")
 
+		doer := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user1"})
 		repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user2", Name: "repo1"})
+		require.NoError(t, repo_model.SetUserCommitIdentity(t.Context(), repo.ID, doer.ID, "Merge Bot", "merge-bot@example.com"))
 		assert.Equal(t, 3, repo.NumPulls)
 		assert.Equal(t, 3, repo.NumOpenPulls)
 
@@ -117,6 +119,15 @@ func TestPullMerge(t *testing.T) {
 			Style:        repo_model.MergeStyleMerge,
 			DeleteBranch: false,
 		})
+		gitRepo, err := gitrepo.OpenRepository(t.Context(), repo)
+		require.NoError(t, err)
+		defer gitRepo.Close()
+		mergeCommit, err := gitRepo.GetBranchCommit("master")
+		require.NoError(t, err)
+		assert.Equal(t, "Merge Bot", mergeCommit.Author.Name)
+		assert.Equal(t, "merge-bot@example.com", mergeCommit.Author.Email)
+		assert.Equal(t, "Merge Bot", mergeCommit.Committer.Name)
+		assert.Equal(t, "merge-bot@example.com", mergeCommit.Committer.Email)
 
 		repo = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
 		assert.Equal(t, 4, repo.NumPulls)
@@ -128,31 +139,42 @@ func TestPullMerge(t *testing.T) {
 	})
 }
 
-func TestRepoSettingMergeCommitterIdentity(t *testing.T) {
+func TestRepoSettingUserCommitIdentity(t *testing.T) {
 	onGiteaRun(t, func(t *testing.T, _ *url.URL) {
 		doer := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user1"})
+		otherUser := unittest.AssertExistsAndLoadBean(t, &user_model.User{Name: "user2"})
 		repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{OwnerName: "user2", Name: "repo1"})
 		session := loginUser(t, doer.Name)
 
 		expectedUserSig := doer.NewGitSig()
-		fallbackSig := repo.NewMergeCommitterSig(doer)
+		fallbackSig, err := repo_model.NewUserCommitterSig(t.Context(), repo, doer)
+		require.NoError(t, err)
 		assert.Equal(t, expectedUserSig.Name, fallbackSig.Name)
 		assert.Equal(t, expectedUserSig.Email, fallbackSig.Email)
 
 		req := NewRequestWithValues(t, "POST", "/user2/repo1/settings", map[string]string{
-			"action":                "update",
-			"repo_name":             repo.Name,
+			"action":                "advanced",
+			"enable_code":           "on",
 			"merge_committer_name":  " Project Bot ",
 			"merge_committer_email": "project-bot@example.com",
 		})
 		session.MakeRequest(t, req, http.StatusSeeOther)
-		repo = unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: repo.ID})
-		assert.Equal(t, "Project Bot", repo.MergeCommitterName)
-		assert.Equal(t, "project-bot@example.com", repo.MergeCommitterEmail)
 
-		projectSig := repo.NewMergeCommitterSig(doer)
+		identity, has, err := repo_model.GetUserCommitIdentity(t.Context(), repo.ID, doer.ID)
+		require.NoError(t, err)
+		require.True(t, has)
+		assert.Equal(t, "Project Bot", identity.CommitName)
+		assert.Equal(t, "project-bot@example.com", identity.CommitEmail)
+
+		projectSig, err := repo_model.NewUserCommitterSig(t.Context(), repo, doer)
+		require.NoError(t, err)
 		assert.Equal(t, "Project Bot", projectSig.Name)
 		assert.Equal(t, "project-bot@example.com", projectSig.Email)
+
+		otherUserSig, err := repo_model.NewUserCommitterSig(t.Context(), repo, otherUser)
+		require.NoError(t, err)
+		assert.Equal(t, otherUser.NewGitSig().Name, otherUserSig.Name)
+		assert.Equal(t, otherUser.NewGitSig().Email, otherUserSig.Email)
 	})
 }
 

@@ -330,12 +330,8 @@ index 0000000000..bbbbbbbbbb
 	t.Run("RepositoryIdentity", func(t *testing.T) {
 		defer tests.PrintCurrentTest(t)()
 
-		err := repo_model.UpdateRepositoryColsWithAutoTime(t.Context(), &repo_model.Repository{
-			ID:                  repo1.ID,
-			MergeCommitterName:  "Project Bot",
-			MergeCommitterEmail: "project-bot@example.com",
-		}, "merge_committer_name", "merge_committer_email")
-		require.NoError(t, err)
+		require.NoError(t, repo_model.SetUserCommitIdentity(t.Context(), repo1.ID, 1, "Other Bot", "other-bot@example.com"))
+		require.NoError(t, repo_model.SetUserCommitIdentity(t.Context(), repo1.ID, user.ID, "Project Bot", "project-bot@example.com"))
 
 		makeReq(t, "/user2/repo1/_edit/master/README.md", map[string]string{
 			"tree_path":    "README.md",

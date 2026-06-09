@@ -4,8 +4,7 @@
 package repo
 
 import (
-	"strings"
-
+	repo_model "code.gitea.io/gitea/models/repo"
 	user_model "code.gitea.io/gitea/models/user"
 	"code.gitea.io/gitea/modules/log"
 	"code.gitea.io/gitea/modules/setting"
@@ -42,25 +41,32 @@ func WebGitOperationGetCommitChosenEmailIdentity(ctx *context.Context, email str
 }
 
 // WebGitOperationGetCommitIdentity returns the Git identity selected for a web commit.
-func WebGitOperationGetCommitIdentity(ctx *context.Context, email string) (_ *files_service.IdentityOptions, valid bool) {
+func WebGitOperationGetCommitIdentity(ctx *context.Context, email string) (_ *files_service.IdentityOptions, valid bool, err error) {
 	identity, valid := WebGitOperationGetCommitChosenEmailIdentity(ctx, email)
 	if !valid {
-		return nil, false
+		return nil, false, nil
 	}
 
 	repo := ctx.Repo.Repository
-	if repo == nil || (strings.TrimSpace(repo.MergeCommitterName) == "" && strings.TrimSpace(repo.MergeCommitterEmail) == "") {
-		return identity, true
+	if repo == nil {
+		return identity, true, nil
+	}
+	userCommitIdentity, has, err := repo_model.GetUserCommitIdentity(ctx, repo.ID, ctx.Doer.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !has {
+		return identity, true, nil
 	}
 
 	if identity == nil {
 		identity = &files_service.IdentityOptions{}
 	}
-	if name := strings.TrimSpace(repo.MergeCommitterName); name != "" {
+	if name := userCommitIdentity.CommitName; name != "" {
 		identity.GitUserName = name
 	}
-	if email := strings.TrimSpace(repo.MergeCommitterEmail); email != "" {
+	if email := userCommitIdentity.CommitEmail; email != "" {
 		identity.GitUserEmail = email
 	}
-	return identity, true
+	return identity, true, nil
 }
