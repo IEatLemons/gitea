@@ -276,8 +276,8 @@
 													<div class="field {{if .Err_PushMirrorAuth}}error{{end}}">
 														<label for="push_mirror_ssh_host_key_policy">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy"}}</label>
 														<select id="push_mirror_ssh_host_key_policy" name="push_mirror_ssh_host_key_policy">
-															<option value="fingerprint" {{if ne .push_mirror_ssh_host_key_policy "accept_new"}}selected{{end}}>fingerprint</option>
-															<option value="accept_new" {{if eq .push_mirror_ssh_host_key_policy "accept_new"}}selected{{end}}>accept_new</option>
+															<option value="fingerprint" {{if ne .push_mirror_ssh_host_key_policy "accept_new"}}selected{{end}}>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy_fingerprint"}}</option>
+															<option value="accept_new" {{if eq .push_mirror_ssh_host_key_policy "accept_new"}}selected{{end}}>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy_accept_new"}}</option>
 														</select>
 													</div>
 													<div class="field {{if .Err_PushMirrorAuth}}error{{end}}">
