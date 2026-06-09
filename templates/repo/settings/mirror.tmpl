@@ -190,15 +190,190 @@
 									{{svg "octicon-pencil" 14}}
 								</button>
 								<form method="post" class="tw-inline-block">
+									<input type="hidden" name="action" value="push-mirror-check-diff">
+									<input type="hidden" name="push_mirror_id" value="{{.ID}}">
+									<button class="ui tiny button" data-tooltip-content="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.check_diff"}}">{{svg "octicon-diff" 14}}</button>
+								</form>
+								<form method="post" class="tw-inline-block">
 									<input type="hidden" name="action" value="push-mirror-sync">
 									<input type="hidden" name="push_mirror_id" value="{{.ID}}">
-									<button class="ui primary tiny button" data-tooltip-content="{{ctx.Locale.Tr "repo.settings.sync_mirror"}}">{{svg "octicon-sync" 14}}</button>
+									<button class="ui primary tiny button" data-tooltip-content="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.push_now"}}">{{svg "octicon-sync" 14}}</button>
 								</form>
 								<form method="post" class="tw-inline-block">
 									<input type="hidden" name="action" value="push-mirror-remove">
 									<input type="hidden" name="push_mirror_id" value="{{.ID}}">
 									<button class="ui basic red tiny button" data-tooltip-content="{{ctx.Locale.Tr "remove"}}">{{svg "octicon-trash" 14}}</button>
 								</form>
+							</td>
+						</tr>
+						{{if $.PushMirrorDiffPreviewByID}}
+							{{with (index $.PushMirrorDiffPreviewByID .ID)}}
+								<tr>
+									<td colspan="5">
+										<div class="ui segment">
+											<h4 class="ui dividing header">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview"}}</h4>
+											{{if .DefaultBranchOnly}}
+												<div class="ui info message">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.default_branch_only"}}</div>
+											{{end}}
+											{{if .Error}}
+												<div class="ui negative message">{{.Error}}</div>
+											{{else}}
+												{{range .Branches}}
+													<div class="tw-mb-4">
+														<div class="tw-flex tw-items-center tw-gap-2 tw-flex-wrap">
+															<strong>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.branch" .Branch}}</strong>
+															{{if .Error}}
+																<span class="ui red label">{{ctx.Locale.Tr "error_title"}}</span>
+															{{else}}
+																<span class="ui small label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.ahead" .Ahead}}</span>
+																<span class="ui small label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.behind" .Behind}}</span>
+																<span class="ui small label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.files_changed" .NumFiles .TotalAdditions .TotalDeletions}}</span>
+															{{end}}
+														</div>
+														{{if .Error}}
+															<div class="ui negative message tw-mt-2">{{.Error}}</div>
+														{{else}}
+															<div class="tw-text-text-light tw-mt-2">
+																{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.local"}}:
+																<a class="ui sha label" href="{{$.RepoLink}}/commit/{{PathEscape .LocalCommitID}}">{{ShortSha .LocalCommitID}}</a>
+																{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.remote"}}:
+																<span class="ui sha label">{{ShortSha .RemoteCommitID}}</span>
+															</div>
+															{{if and (eq .Ahead 0) (eq .Behind 0)}}
+																<div class="ui positive message tw-mt-2">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.no_diff"}}</div>
+															{{end}}
+															{{if .Commits}}
+																<details class="tw-mt-2" open>
+																	<summary>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.commits_to_push"}}</summary>
+																	<ul class="tw-mt-2">
+																		{{range .Commits}}
+																			<li>
+																				<a class="ui sha label" href="{{$.RepoLink}}/commit/{{PathEscape .ID}}">{{ShortSha .ID}}</a>
+																				<span>{{.Summary}}</span>
+																				{{if .Author}}<span class="tw-text-text-light">- {{.Author}}</span>{{end}}
+																			</li>
+																		{{end}}
+																	</ul>
+																	{{if .CommitsMore}}
+																		<div class="tw-text-text-light">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.more_commits" .CommitsMore}}</div>
+																	{{end}}
+																</details>
+															{{end}}
+															{{if .Files}}
+																<details class="tw-mt-2" open>
+																	<summary>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.changed_files"}}</summary>
+																	<ul class="tw-mt-2">
+																		{{range .Files}}
+																			<li>
+																				<span class="ui small label">{{.Status}}</span>
+																				{{if and .OldPath (ne .OldPath .Path)}}{{.OldPath}} -> {{end}}{{.Path}}
+																			</li>
+																		{{end}}
+																	</ul>
+																	{{if .FilesMore}}
+																		<div class="tw-text-text-light">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.diff_preview.more_files" .FilesMore}}</div>
+																	{{end}}
+																</details>
+															{{end}}
+														{{end}}
+													</div>
+												{{end}}
+											{{end}}
+										</div>
+									</td>
+								</tr>
+							{{end}}
+						{{end}}
+						{{$syncTasks := index $.PushMirrorSyncTasksByID .ID}}
+						<tr>
+							<td colspan="5">
+								<details>
+									<summary class="tw-p-1 flex-text-inline">
+										{{svg "octicon-history" 14}}
+										{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs"}}
+										{{if $syncTasks}}<span class="ui small label">{{len $syncTasks}}</span>{{end}}
+									</summary>
+									{{if $syncTasks}}
+										<div class="tw-overflow-x-auto tw-mt-2">
+											<table class="ui very basic compact table">
+												<thead>
+													<tr>
+														<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.started"}}</th>
+														<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.finished"}}</th>
+														<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.trigger"}}</th>
+														<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.status"}}</th>
+														<th>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.output"}}</th>
+														<th></th>
+													</tr>
+												</thead>
+												<tbody>
+													{{range $syncTasks}}
+														<tr>
+															<td>{{if .StartedUnix}}{{DateUtils.FullTime .StartedUnix}}{{else}}-{{end}}</td>
+															<td>{{if .FinishedUnix}}{{DateUtils.FullTime .FinishedUnix}}{{else}}-{{end}}</td>
+															<td>
+																{{if eq .TriggerType "manual"}}
+																	{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.trigger.manual"}}
+																{{else if eq .TriggerType "commit"}}
+																	{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.trigger.commit"}}
+																{{else if eq .TriggerType "scheduled"}}
+																	{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.trigger.scheduled"}}
+																{{else}}
+																	{{.TriggerType}}
+																{{end}}
+															</td>
+															<td>
+																{{if not .FinishedUnix}}
+																	<span class="ui orange label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.status.running"}}</span>
+																{{else if .IsSucceed}}
+																	<span class="ui green label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.status.success"}}</span>
+																{{else}}
+																	<span class="ui red label">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.status.failure"}}</span>
+																{{end}}
+															</td>
+															<td class="tw-break-anywhere">
+																{{if or .ErrorMessage .Stdout .Stderr}}
+																	<details>
+																		<summary>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.details"}}</summary>
+																		{{if .ErrorMessage}}
+																			<div class="tw-mt-2">
+																				<strong>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.error"}}</strong>
+																				<pre class="tw-whitespace-pre-wrap tw-break-anywhere">{{.ErrorMessage}}</pre>
+																			</div>
+																		{{end}}
+																		{{if .Stdout}}
+																			<div class="tw-mt-2">
+																				<strong>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.stdout"}}</strong>
+																				<pre class="tw-whitespace-pre-wrap tw-break-anywhere">{{.Stdout}}</pre>
+																			</div>
+																		{{end}}
+																		{{if .Stderr}}
+																			<div class="tw-mt-2">
+																				<strong>{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.stderr"}}</strong>
+																				<pre class="tw-whitespace-pre-wrap tw-break-anywhere">{{.Stderr}}</pre>
+																			</div>
+																		{{end}}
+																	</details>
+																{{else}}
+																	-
+																{{end}}
+															</td>
+															<td class="tw-text-right">
+																<form method="post" class="tw-inline-block">
+																	<input type="hidden" name="action" value="mirror-sync-replay">
+																	<input type="hidden" name="mirror_sync_task_uuid" value="{{.UUID}}">
+																	<button class="ui tiny button" data-tooltip-content="{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.replay"}}">{{svg "octicon-sync" 14}}</button>
+																</form>
+															</td>
+														</tr>
+													{{end}}
+												</tbody>
+											</table>
+										</div>
+									{{else}}
+										<div class="tw-mt-2 tw-text-text-light">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.sync_logs.none"}}</div>
+									{{end}}
+								</details>
 							</td>
 						</tr>
 						{{else}}

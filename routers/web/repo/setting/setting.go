@@ -168,6 +168,8 @@ func MirrorSettingsPost(ctx *context.Context) {
 		handleSettingsPostMirrorSyncReplay(ctx)
 	case "push-mirror-sync":
 		handleSettingsPostPushMirrorSync(ctx)
+	case "push-mirror-check-diff":
+		handleSettingsPostPushMirrorCheckDiff(ctx)
 	case "push-mirror-update":
 		handleSettingsPostPushMirrorUpdate(ctx)
 	case "push-mirror-remove":
@@ -204,6 +206,8 @@ func SettingsPost(ctx *context.Context) {
 		handleSettingsPostMirrorSyncReplay(ctx)
 	case "push-mirror-sync":
 		handleSettingsPostPushMirrorSync(ctx)
+	case "push-mirror-check-diff":
+		handleSettingsPostPushMirrorCheckDiff(ctx)
 	case "push-mirror-update":
 		handleSettingsPostPushMirrorUpdate(ctx)
 	case "push-mirror-remove":
@@ -511,6 +515,34 @@ func handleSettingsPostPushMirrorSync(ctx *context.Context) {
 
 	ctx.Flash.Info(ctx.Tr("repo.settings.push_mirror_sync_in_progress", m.RemoteAddress))
 	ctx.Redirect(mirrorSettingsLink(repo))
+}
+
+func handleSettingsPostPushMirrorCheckDiff(ctx *context.Context) {
+	form := web.GetForm(ctx).(*forms.RepoSettingForm)
+	repo := ctx.Repo.Repository
+
+	if !ensureMirrorSettingsOwner(ctx) {
+		return
+	}
+	if !setting.Mirror.Enabled || repo.IsArchived {
+		ctx.NotFound(nil)
+		return
+	}
+
+	m, _, _ := repo_model.GetPushMirrorByIDAndRepoID(ctx, form.PushMirrorID, repo.ID)
+	if m == nil {
+		ctx.NotFound(nil)
+		return
+	}
+
+	preview := mirror_service.GetPushMirrorDiffPreview(ctx, m)
+	ctx.Data["PushMirrorDiffPreviewByID"] = map[int64]*mirror_service.PushMirrorDiffPreview{
+		m.ID: preview,
+	}
+	ctx.Data["Title"] = ctx.Tr("repo.settings.mirror_settings")
+	ctx.Data["PageIsSettingsOptions"] = false
+	ctx.Data["PageIsSettingsMirror"] = true
+	ctx.HTML(http.StatusOK, tplSettingsMirror)
 }
 
 func handleSettingsPostMirrorSyncReplay(ctx *context.Context) {
