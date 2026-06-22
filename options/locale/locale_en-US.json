@@ -2135,6 +2135,8 @@
   "repo.settings.mirror_settings.push_mirror.ssh_private_key_update_desc": "This private key is encrypted after saving and is not shown again.",
   "repo.settings.mirror_settings.push_mirror.ssh_public_key": "SSH public key",
   "repo.settings.mirror_settings.push_mirror.ssh_public_key_desc": "Add this public key to the remote repository with write access.",
+  "repo.settings.mirror_settings.push_mirror.ssh_public_key_update_hint": "Use Update SSH key to replace this key.",
+  "repo.settings.mirror_settings.push_mirror.update_ssh_key": "Update SSH key",
   "repo.settings.mirror_settings.push_mirror.ssh_key_saved": "SSH key saved. Copy the public key to the remote repository before syncing.",
   "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy": "SSH host key verification",
   "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy_fingerprint": "Verify host key manually (more secure)",

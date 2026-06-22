@@ -114,6 +114,25 @@ func GetMirrorSyncTasks(ctx context.Context, repoID int64, mirrorType string, pu
 	return db.FindAndCount[MirrorSyncTask](ctx, opts)
 }
 
+// HasRunningMirrorSyncTask reports whether a sync task is still unfinished.
+func HasRunningMirrorSyncTask(ctx context.Context, repoID int64, mirrorType string, pushMirrorID int64) (bool, error) {
+	return db.GetEngine(ctx).
+		Where("repo_id = ? AND mirror_type = ? AND push_mirror_id = ? AND finished_unix = 0", repoID, mirrorType, pushMirrorID).
+		Exist(new(MirrorSyncTask))
+}
+
+// MarkStaleMirrorSyncTasksFailed marks unfinished sync tasks older than startedBefore as failed.
+func MarkStaleMirrorSyncTasksFailed(ctx context.Context, repoID int64, mirrorType string, pushMirrorID int64, startedBefore timeutil.TimeStamp, message string) (int64, error) {
+	return db.GetEngine(ctx).
+		Where("repo_id = ? AND mirror_type = ? AND push_mirror_id = ? AND finished_unix = 0 AND started_unix <= ?", repoID, mirrorType, pushMirrorID, startedBefore).
+		Cols("is_succeed", "error_message", "finished_unix").
+		Update(&MirrorSyncTask{
+			IsSucceed:    false,
+			ErrorMessage: message,
+			FinishedUnix: timeutil.TimeStampNow(),
+		})
+}
+
 // DeleteMirrorSyncTasksForPushMirror removes history when a push mirror is deleted.
 func DeleteMirrorSyncTasksForPushMirror(ctx context.Context, repoID, pushMirrorID int64) error {
 	_, err := db.GetEngine(ctx).Where("repo_id = ? AND push_mirror_id = ?", repoID, pushMirrorID).Delete(new(MirrorSyncTask))

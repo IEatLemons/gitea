@@ -29,6 +29,9 @@ import (
 
 var stripExitStatus = regexp.MustCompile(`exit status \d+ - `)
 
+const stalePushMirrorSyncMessage = "Mirror sync did not finish before the configured timeout " +
+	"and was marked as failed."
+
 func addFullMirrorRemoteAndConfig(ctx context.Context, storageRepo gitrepo.Repository, remoteName, addr string) error {
 	if err := gitrepo.GitRemoteAdd(ctx, storageRepo, remoteName, addr, gitrepo.RemoteOptionMirrorPush); err != nil {
 		return err
@@ -140,6 +143,13 @@ func SyncPushMirror(ctx context.Context, mirrorID int64, triggerType string) boo
 
 	m.LastError = ""
 
+	if hasRunning, err := cleanupAndCheckRunningPushMirrorSync(ctx, m); err != nil {
+		log.Error("cleanupAndCheckRunningPushMirrorSync push mirror[%d]: %v", m.ID, err)
+	} else if hasRunning {
+		log.Trace("SyncPushMirror [mirror: %d][repo: %-v]: Skipping sync because another task is still running", m.ID, m.Repo)
+		return false
+	}
+
 	task := &repo_model.MirrorSyncTask{
 		RepoID:       m.RepoID,
 		MirrorType:   repo_model.MirrorSyncTypePush,
@@ -185,6 +195,24 @@ func SyncPushMirror(ctx context.Context, mirrorID int64, triggerType string) boo
 	log.Trace("SyncPushMirror [mirror: %d][repo: %-v]: Finished", m.ID, m.Repo)
 
 	return syncErr == nil
+}
+
+func cleanupAndCheckRunningPushMirrorSync(ctx context.Context, m *repo_model.PushMirror) (bool, error) {
+	timeout := time.Duration(setting.Git.Timeout.Mirror) * time.Second
+	if timeout > 0 {
+		startedBefore := timeutil.TimeStampNow().AddDuration(-timeout)
+		if _, err := repo_model.MarkStaleMirrorSyncTasksFailed(
+			ctx,
+			m.RepoID,
+			repo_model.MirrorSyncTypePush,
+			m.ID,
+			startedBefore,
+			stalePushMirrorSyncMessage,
+		); err != nil {
+			return false, err
+		}
+	}
+	return repo_model.HasRunningMirrorSyncTask(ctx, m.RepoID, repo_model.MirrorSyncTypePush, m.ID)
 }
 
 func runPushSync(ctx context.Context, m *repo_model.PushMirror, triggerType string) (stdout, stderr string, err error) {

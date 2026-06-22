@@ -148,7 +148,7 @@
 										<input id="push-mirror-public-key-{{.ID}}" value="{{.SSHPublicKey}}" readonly>
 										<button type="button" class="ui icon button" data-clipboard-target="#push-mirror-public-key-{{.ID}}" data-tooltip-content="{{ctx.Locale.Tr "copy"}}">{{svg "octicon-copy" 14}}</button>
 									</div>
-									<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_public_key_desc"}}</p>
+									<p class="help">{{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_public_key_desc"}} {{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.ssh_public_key_update_hint"}}</p>
 								{{end}}
 							</td>
 							<td>{{ctx.Locale.Tr "repo.settings.mirror_settings.direction.push"}} ({{.Interval}})</td>
@@ -187,7 +187,11 @@
 									data-modal-push-mirror-edit-record-file-author-email="{{.RecordFileAuthorEmail}}"
 									data-modal-push-mirror-edit-record-file-commit-message="{{.RecordFileCommitMessage}}"
 								>
-									{{svg "octicon-pencil" 14}}
+									{{if eq .AuthType "ssh"}}
+										{{svg "octicon-key" 14}} {{ctx.Locale.Tr "repo.settings.mirror_settings.push_mirror.update_ssh_key"}}
+									{{else}}
+										{{svg "octicon-pencil" 14}} {{ctx.Locale.Tr "edit"}}
+									{{end}}
 								</button>
 								<form method="post" class="tw-inline-block">
 									<input type="hidden" name="action" value="push-mirror-check-diff">

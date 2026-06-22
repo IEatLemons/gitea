@@ -2122,6 +2122,8 @@
   "repo.settings.mirror_settings.push_mirror.ssh_private_key_update_desc": "私钥保存后会被加密，不会再次显示。",
   "repo.settings.mirror_settings.push_mirror.ssh_public_key": "SSH 公钥",
   "repo.settings.mirror_settings.push_mirror.ssh_public_key_desc": "请将此公钥添加到远端仓库，并授予写入权限。",
+  "repo.settings.mirror_settings.push_mirror.ssh_public_key_update_hint": "如需替换，请使用“更新 SSH 密钥”。",
+  "repo.settings.mirror_settings.push_mirror.update_ssh_key": "更新 SSH 密钥",
   "repo.settings.mirror_settings.push_mirror.ssh_key_saved": "SSH 密钥已保存。同步前请先将公钥复制到远端仓库。",
   "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy": "SSH 主机密钥验证方式",
   "repo.settings.mirror_settings.push_mirror.ssh_host_key_policy_fingerprint": "手动校验主机密钥（更安全）",
