@@ -203,6 +203,9 @@ func serveInstalled(c *cli.Command) error {
 	}
 
 	routers.InitWebInstalled(graceful.GetManager().HammerContext())
+	if err := install.EnsureInitialAdmin(graceful.GetManager().HammerContext()); err != nil {
+		return err
+	}
 
 	// We check that AppDataPath exists here (it should have been created during installation)
 	// We can't check it in `InitWebInstalled`, because some integration tests
@@ -273,8 +276,16 @@ func runWeb(ctx context.Context, cmd *cli.Command) error {
 	_ = templates.PageRenderer()
 
 	if !setting.InstallLock {
-		if err := serveInstall(cmd); err != nil {
-			return err
+		if setting.InstallAutoConfiguredViaEnvironment() {
+			showWebStartupMessage("Prepare to run unattended install")
+			if err := install.AutoInstall(graceful.GetManager().HammerContext()); err != nil {
+				return err
+			}
+			NoInstallListener()
+		} else {
+			if err := serveInstall(cmd); err != nil {
+				return err
+			}
 		}
 	} else {
 		NoInstallListener()

@@ -8,6 +8,18 @@ import (
 	"strings"
 )
 
+const (
+	InstallAdminNameEnv     = "GITEA_INSTALL_ADMIN_NAME"
+	InstallAdminPasswordEnv = "GITEA_INSTALL_ADMIN_PASSWORD"
+	InstallAdminEmailEnv    = "GITEA_INSTALL_ADMIN_EMAIL"
+)
+
+type InstallAdminEnvironment struct {
+	Name     string
+	Password string
+	Email    string
+}
+
 // hasGiteaEnvDatabaseKey reports whether the process environment defines
 // GITEA__database__<KEY> (or __FILE variant), matching [database] keys case-insensitively.
 func hasGiteaEnvDatabaseKey(wantKey string) bool {
@@ -68,4 +80,18 @@ func InstallDatabaseConfiguredViaEnvironment() bool {
 	}
 
 	return true
+}
+
+func InstallAdminConfiguredViaEnvironment() (InstallAdminEnvironment, bool) {
+	admin := InstallAdminEnvironment{
+		Name:     strings.TrimSpace(os.Getenv(InstallAdminNameEnv)),
+		Password: os.Getenv(InstallAdminPasswordEnv),
+		Email:    strings.TrimSpace(os.Getenv(InstallAdminEmailEnv)),
+	}
+	return admin, admin.Name != "" && strings.TrimSpace(admin.Password) != "" && admin.Email != ""
+}
+
+func InstallAutoConfiguredViaEnvironment() bool {
+	_, hasAdmin := InstallAdminConfiguredViaEnvironment()
+	return hasAdmin && InstallDatabaseConfiguredViaEnvironment()
 }

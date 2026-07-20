@@ -27,6 +27,14 @@ Railway 的卷挂载目前需在 **控制台** 创建并绑定服务，无法在
 - `GITEA__server__HTTP_PORT` = `${{PORT}}`
 - `GITEA__server__ROOT_URL` = `https://${{RAILWAY_PUBLIC_DOMAIN}}/`
 
+若需要在 Railway 上跳过网页安装流程，可以通过环境变量提供初始管理员账号。数据库配置必须也来自环境变量，例如 `GITEA__database__DB_TYPE` 和 `GITEA__database__CONN_STR`：
+
+- `GITEA_INSTALL_ADMIN_NAME` = `admin`
+- `GITEA_INSTALL_ADMIN_PASSWORD` = `<strong-password>`
+- `GITEA_INSTALL_ADMIN_EMAIL` = `admin@example.com`
+
+当实例尚未安装且数据库与管理员环境变量都完整时，启动流程会自动完成首次安装并创建管理员。若 `app.ini` 已存在但 Postgres 被重置为空库，正常启动后也会在没有任何用户时自动补建该管理员。完成初始化后建议删除 `GITEA_INSTALL_ADMIN_PASSWORD`，或至少轮换管理员密码。
+
 若自行修改了 `APP_DATA_PATH` 或 `[repository] ROOT`，卷挂载点必须覆盖这些路径所在的父目录。
 
 ## 2. 数据已丢失时的恢复

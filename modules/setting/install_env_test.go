@@ -123,3 +123,43 @@ func TestHasGiteaEnvDatabaseKey(t *testing.T) {
 	assert.True(t, hasGiteaEnvDatabaseKey("host"))
 	assert.False(t, hasGiteaEnvDatabaseKey("CONN_STR"))
 }
+
+func TestInstallAdminConfiguredViaEnvironment(t *testing.T) {
+	t.Setenv(InstallAdminNameEnv, " admin ")
+	t.Setenv(InstallAdminPasswordEnv, "password")
+	t.Setenv(InstallAdminEmailEnv, " admin@example.com ")
+
+	admin, ok := InstallAdminConfiguredViaEnvironment()
+
+	assert.True(t, ok)
+	assert.Equal(t, InstallAdminEnvironment{
+		Name:     "admin",
+		Password: "password",
+		Email:    "admin@example.com",
+	}, admin)
+}
+
+func TestInstallAdminConfiguredViaEnvironment_Incomplete(t *testing.T) {
+	t.Setenv(InstallAdminNameEnv, "admin")
+	t.Setenv(InstallAdminEmailEnv, "admin@example.com")
+
+	_, ok := InstallAdminConfiguredViaEnvironment()
+
+	assert.False(t, ok)
+}
+
+func TestInstallAutoConfiguredViaEnvironment(t *testing.T) {
+	defer resetDatabaseForInstallEnvTest(t)()
+
+	conn := "postgres://user:pass@127.0.0.1:5432/gitea?sslmode=disable"
+	t.Setenv("GITEA__database__CONN_STR", conn)
+	t.Setenv("GITEA__database__DB_TYPE", "postgres")
+	t.Setenv(InstallAdminNameEnv, "admin")
+	t.Setenv(InstallAdminPasswordEnv, "password")
+	t.Setenv(InstallAdminEmailEnv, "admin@example.com")
+
+	Database.Type = "postgres"
+	Database.ConnStr = conn
+
+	assert.True(t, InstallAutoConfiguredViaEnvironment())
+}

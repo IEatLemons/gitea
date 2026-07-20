@@ -5,6 +5,8 @@
 package install
 
 import (
+	std_context "context"
+	"fmt"
 	"net/http"
 	"net/mail"
 	"os"
@@ -59,19 +61,11 @@ func installContexter() func(next http.Handler) http.Handler {
 	})
 }
 
-// Install render installation page
-func Install(ctx *context.Context) {
-	if setting.InstallLock {
-		InstallDone(ctx)
-		return
-	}
-
-	ctx.Data["SkipDatabaseForm"] = setting.InstallDatabaseConfiguredViaEnvironment()
-	ctx.Data["DatabaseTypeForInstall"] = setting.Database.Type.String()
-
+func prepareInstallForm() forms.InstallForm {
 	form := forms.InstallForm{}
 
 	// Database settings
+	form.DbType = setting.Database.Type.String()
 	form.DbHost = setting.Database.Host
 	form.DbUser = setting.Database.User
 	form.DbPasswd = setting.Database.Passwd
@@ -79,12 +73,6 @@ func Install(ctx *context.Context) {
 	form.DbPath = setting.Database.Path
 	form.DbSchema = setting.Database.Schema
 	form.SSLMode = setting.Database.SSLMode
-
-	curDBType := setting.Database.Type.String()
-	if !slices.Contains(setting.SupportedDatabaseTypes, curDBType) {
-		curDBType = "mysql"
-	}
-	ctx.Data["CurDbType"] = curDBType
 
 	// Application general settings
 	form.AppName = setting.AppName
@@ -127,6 +115,27 @@ func Install(ctx *context.Context) {
 	form.DefaultEnableTimetracking = setting.Service.DefaultEnableTimetracking
 	form.NoReplyAddress = setting.Service.NoReplyAddress
 	form.PasswordAlgorithm = hash.ConfigHashAlgorithm(setting.PasswordHashAlgo)
+
+	return form
+}
+
+// Install render installation page
+func Install(ctx *context.Context) {
+	if setting.InstallLock {
+		InstallDone(ctx)
+		return
+	}
+
+	ctx.Data["SkipDatabaseForm"] = setting.InstallDatabaseConfiguredViaEnvironment()
+	ctx.Data["DatabaseTypeForInstall"] = setting.Database.Type.String()
+
+	form := prepareInstallForm()
+
+	curDBType := form.DbType
+	if !slices.Contains(setting.SupportedDatabaseTypes, curDBType) {
+		curDBType = "mysql"
+	}
+	ctx.Data["CurDbType"] = curDBType
 
 	middleware.AssignForm(form, ctx.Data)
 	ctx.HTML(http.StatusOK, tplInstall)
@@ -194,6 +203,383 @@ func checkDatabase(ctx *context.Context, form *forms.InstallForm) bool {
 	}
 
 	return true
+}
+
+func checkDatabaseForAutoInstall(ctx std_context.Context) (bool, error) {
+	if setting.Database.Type == "sqlite3" && len(setting.Database.Path) == 0 {
+		return false, fmt.Errorf("empty sqlite database path")
+	}
+
+	db.UnsetDefaultEngine()
+	defer db.UnsetDefaultEngine()
+
+	if err := db.InitEngine(ctx); err != nil {
+		return false, fmt.Errorf("init database engine: %w", err)
+	}
+	if err := db_install.CheckDatabaseConnection(ctx); err != nil {
+		return false, fmt.Errorf("check database connection: %w", err)
+	}
+
+	dbMigrationVersion, err := db_install.GetMigrationVersion(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check version table: %w", err)
+	}
+	hasUsers, err := hasIndividualUsers(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check user table: %w", err)
+	}
+	if hasUsers {
+		log.Warn("Database already has users; skipping unattended install")
+		return false, nil
+	}
+	if dbMigrationVersion > 0 {
+		log.Info("Gitea will be installed in a database with: hasIndividualUsers=%v, dbMigrationVersion=%d", hasUsers, dbMigrationVersion)
+	}
+
+	return true, nil
+}
+
+func hasIndividualUsers(ctx std_context.Context) (bool, error) {
+	x := db.GetEngine(ctx)
+	exist, err := x.IsTableExist("user")
+	if err != nil {
+		return false, err
+	}
+	if !exist {
+		return false, nil
+	}
+	count, err := x.Table("user").Where("type = ?", user_model.UserTypeIndividual).Count(new(user_model.User))
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func applyInstallAdminEnvironment(form *forms.InstallForm) bool {
+	admin, ok := setting.InstallAdminConfiguredViaEnvironment()
+	if !ok {
+		return false
+	}
+	form.AdminName = admin.Name
+	form.AdminPasswd = admin.Password
+	form.AdminConfirmPasswd = admin.Password
+	form.AdminEmail = admin.Email
+	return true
+}
+
+func validateInitialAdmin(form *forms.InstallForm) error {
+	if len(form.AdminName) == 0 {
+		return fmt.Errorf("initial admin name is empty")
+	}
+	if err := user_model.IsUsableUsername(form.AdminName); err != nil {
+		return fmt.Errorf("initial admin name is invalid: %w", err)
+	}
+	if len(form.AdminEmail) == 0 {
+		return fmt.Errorf("initial admin email is empty")
+	}
+	if _, err := mail.ParseAddress(form.AdminEmail); err != nil {
+		return fmt.Errorf("initial admin email is invalid: %w", err)
+	}
+	if strings.TrimSpace(form.AdminPasswd) == "" {
+		return fmt.Errorf("initial admin password is empty")
+	}
+	if form.AdminPasswd != form.AdminConfirmPasswd {
+		return fmt.Errorf("initial admin password confirmation does not match")
+	}
+	return nil
+}
+
+func prepareInstallPaths(form *forms.InstallForm) error {
+	if err := setting.PrepareAppDataPath(); err != nil {
+		return fmt.Errorf("prepare app data path: %w", err)
+	}
+
+	form.RepoRootPath = strings.ReplaceAll(form.RepoRootPath, "\\", "/")
+	if err := os.MkdirAll(form.RepoRootPath, os.ModePerm); err != nil {
+		return fmt.Errorf("create repository root path: %w", err)
+	}
+
+	if form.LFSRootPath != "" {
+		form.LFSRootPath = strings.ReplaceAll(form.LFSRootPath, "\\", "/")
+		if err := os.MkdirAll(form.LFSRootPath, os.ModePerm); err != nil {
+			return fmt.Errorf("create lfs root path: %w", err)
+		}
+	}
+
+	form.LogRootPath = strings.ReplaceAll(form.LogRootPath, "\\", "/")
+	if err := os.MkdirAll(form.LogRootPath, os.ModePerm); err != nil {
+		return fmt.Errorf("create log root path: %w", err)
+	}
+
+	currentUser, match := setting.IsRunUserMatchCurrentUser(form.RunUser)
+	if !match {
+		return fmt.Errorf("run user %q does not match current user %q", form.RunUser, currentUser)
+	}
+	return nil
+}
+
+func saveInstallConfig(form *forms.InstallForm) error {
+	cfg, err := setting.NewConfigProviderFromFile(setting.CustomConf)
+	if err != nil {
+		return fmt.Errorf("load custom config %q: %w", setting.CustomConf, err)
+	}
+
+	cfg.Section("").Key("APP_NAME").SetValue(form.AppName)
+	cfg.Section("").Key("RUN_USER").SetValue(form.RunUser)
+	cfg.Section("").Key("WORK_PATH").SetValue(setting.AppWorkPath)
+	cfg.Section("").Key("RUN_MODE").SetValue("prod")
+
+	cfg.Section("database").Key("DB_TYPE").SetValue(setting.Database.Type.String())
+	cfg.Section("database").Key("HOST").SetValue(setting.Database.Host)
+	cfg.Section("database").Key("NAME").SetValue(setting.Database.Name)
+	cfg.Section("database").Key("USER").SetValue(setting.Database.User)
+	cfg.Section("database").Key("PASSWD").SetValue(setting.Database.Passwd)
+	cfg.Section("database").Key("SCHEMA").SetValue(setting.Database.Schema)
+	cfg.Section("database").Key("SSL_MODE").SetValue(setting.Database.SSLMode)
+	cfg.Section("database").Key("PATH").SetValue(setting.Database.Path)
+	cfg.Section("database").Key("LOG_SQL").SetValue("false")
+	if setting.Database.ConnStr != "" {
+		cfg.Section("database").Key("CONN_STR").SetValue(setting.Database.ConnStr)
+	}
+
+	cfg.Section("repository").Key("ROOT").SetValue(form.RepoRootPath)
+	cfg.Section("server").Key("SSH_DOMAIN").SetValue(form.Domain)
+	cfg.Section("server").Key("DOMAIN").SetValue(form.Domain)
+	cfg.Section("server").Key("HTTP_PORT").SetValue(form.HTTPPort)
+	cfg.Section("server").Key("ROOT_URL").SetValue(form.AppURL)
+	cfg.Section("server").Key("APP_DATA_PATH").SetValue(setting.AppDataPath)
+
+	if form.SSHPort == 0 {
+		cfg.Section("server").Key("DISABLE_SSH").SetValue("true")
+	} else {
+		cfg.Section("server").Key("DISABLE_SSH").SetValue("false")
+		cfg.Section("server").Key("SSH_PORT").SetValue(strconv.Itoa(form.SSHPort))
+	}
+
+	if form.LFSRootPath != "" {
+		cfg.Section("server").Key("LFS_START_SERVER").SetValue("true")
+		cfg.Section("lfs").Key("PATH").SetValue(form.LFSRootPath)
+
+		if !cfg.Section("server").HasKey("LFS_JWT_SECRET_URI") {
+			_, lfsJwtSecret := generate.NewJwtSecretWithBase64()
+			cfg.Section("server").Key("LFS_JWT_SECRET").SetValue(lfsJwtSecret)
+		}
+	} else {
+		cfg.Section("server").Key("LFS_START_SERVER").SetValue("false")
+	}
+
+	if len(strings.TrimSpace(form.SMTPAddr)) > 0 {
+		if _, err := mail.ParseAddress(form.SMTPFrom); err != nil {
+			return fmt.Errorf("smtp from address is invalid: %w", err)
+		}
+
+		cfg.Section("mailer").Key("ENABLED").SetValue("true")
+		cfg.Section("mailer").Key("SMTP_ADDR").SetValue(form.SMTPAddr)
+		cfg.Section("mailer").Key("SMTP_PORT").SetValue(form.SMTPPort)
+		cfg.Section("mailer").Key("FROM").SetValue(form.SMTPFrom)
+		cfg.Section("mailer").Key("USER").SetValue(form.SMTPUser)
+		cfg.Section("mailer").Key("PASSWD").SetValue(form.SMTPPasswd)
+	} else {
+		cfg.Section("mailer").Key("ENABLED").SetValue("false")
+	}
+	cfg.Section("service").Key("REGISTER_EMAIL_CONFIRM").SetValue(strconv.FormatBool(form.RegisterConfirm))
+	cfg.Section("service").Key("ENABLE_NOTIFY_MAIL").SetValue(strconv.FormatBool(form.MailNotify))
+
+	cfg.Section("openid").Key("ENABLE_OPENID_SIGNIN").SetValue(strconv.FormatBool(form.EnableOpenIDSignIn))
+	cfg.Section("openid").Key("ENABLE_OPENID_SIGNUP").SetValue(strconv.FormatBool(form.EnableOpenIDSignUp))
+	cfg.Section("service").Key("DISABLE_REGISTRATION").SetValue(strconv.FormatBool(form.DisableRegistration))
+	cfg.Section("service").Key("ALLOW_ONLY_EXTERNAL_REGISTRATION").SetValue(strconv.FormatBool(form.AllowOnlyExternalRegistration))
+	cfg.Section("service").Key("ENABLE_CAPTCHA").SetValue(strconv.FormatBool(form.EnableCaptcha))
+	cfg.Section("service").Key("REQUIRE_SIGNIN_VIEW").SetValue(strconv.FormatBool(form.RequireSignInView))
+	cfg.Section("service").Key("DEFAULT_KEEP_EMAIL_PRIVATE").SetValue(strconv.FormatBool(form.DefaultKeepEmailPrivate))
+	cfg.Section("service").Key("DEFAULT_ALLOW_CREATE_ORGANIZATION").SetValue(strconv.FormatBool(form.DefaultAllowCreateOrganization))
+	cfg.Section("service").Key("DEFAULT_ENABLE_TIMETRACKING").SetValue(strconv.FormatBool(form.DefaultEnableTimetracking))
+	cfg.Section("service").Key("NO_REPLY_ADDRESS").SetValue(form.NoReplyAddress)
+	cfg.Section("cron.update_checker").Key("ENABLED").SetValue(strconv.FormatBool(form.EnableUpdateChecker))
+
+	cfg.Section("session").Key("PROVIDER").SetValue("file")
+
+	cfg.Section("log").Key("MODE").MustString("console")
+	cfg.Section("log").Key("LEVEL").SetValue(setting.Log.Level.String())
+	cfg.Section("log").Key("ROOT_PATH").SetValue(form.LogRootPath)
+
+	cfg.Section("repository.pull-request").Key("DEFAULT_MERGE_STYLE").SetValue("merge")
+
+	cfg.Section("repository.signing").Key("DEFAULT_TRUST_MODEL").SetValue("committer")
+
+	cfg.Section("security").Key("INSTALL_LOCK").SetValue("true")
+
+	if setting.InternalToken == "" {
+		internalToken, err := generate.NewInternalToken()
+		if err != nil {
+			return fmt.Errorf("generate internal token: %w", err)
+		}
+		cfg.Section("security").Key("INTERNAL_TOKEN").SetValue(internalToken)
+	}
+
+	if !cfg.Section("oauth2").HasKey("JWT_SECRET") && !cfg.Section("oauth2").HasKey("JWT_SECRET_URI") {
+		_, jwtSecretBase64 := generate.NewJwtSecretWithBase64()
+		cfg.Section("oauth2").Key("JWT_SECRET").SetValue(jwtSecretBase64)
+	}
+
+	if setting.SecretKey == "" {
+		secretKey, err := generate.NewSecretKey()
+		if err != nil {
+			return fmt.Errorf("generate secret key: %w", err)
+		}
+		cfg.Section("security").Key("SECRET_KEY").SetValue(secretKey)
+	}
+
+	if len(form.PasswordAlgorithm) > 0 {
+		var algorithm *hash.PasswordHashAlgorithm
+		setting.PasswordHashAlgo, algorithm = hash.SetDefaultPasswordHashAlgorithm(form.PasswordAlgorithm)
+		if algorithm == nil {
+			return fmt.Errorf("invalid password hash algorithm")
+		}
+		cfg.Section("security").Key("PASSWORD_HASH_ALGO").SetValue(form.PasswordAlgorithm)
+	}
+
+	log.Info("Save settings to custom config file %s", setting.CustomConf)
+
+	if err := os.MkdirAll(filepath.Dir(setting.CustomConf), os.ModePerm); err != nil {
+		return fmt.Errorf("create custom config directory: %w", err)
+	}
+
+	setting.EnvironmentToConfig(cfg, os.Environ())
+	cfg.Section("security").Key("INSTALL_LOCK").SetValue("true")
+
+	if err := cfg.SaveTo(setting.CustomConf); err != nil {
+		return fmt.Errorf("save custom config: %w", err)
+	}
+	return nil
+}
+
+func forceInstallLock() error {
+	cfg, err := setting.NewConfigProviderFromFile(setting.CustomConf)
+	if err != nil {
+		return fmt.Errorf("load custom config %q: %w", setting.CustomConf, err)
+	}
+	setting.EnvironmentToConfig(cfg, os.Environ())
+	cfg.Section("security").Key("INSTALL_LOCK").SetValue("true")
+	if err := os.MkdirAll(filepath.Dir(setting.CustomConf), os.ModePerm); err != nil {
+		return fmt.Errorf("create custom config directory: %w", err)
+	}
+	if err := cfg.SaveTo(setting.CustomConf); err != nil {
+		return fmt.Errorf("save install lock: %w", err)
+	}
+	if setting.CfgProvider != nil {
+		setting.CfgProvider.Section("security").Key("INSTALL_LOCK").SetValue("true")
+	}
+	setting.InstallLock = true
+	return nil
+}
+
+func createInitialAdmin(ctx std_context.Context, form *forms.InstallForm) (*user_model.User, error) {
+	u := &user_model.User{
+		Name:    form.AdminName,
+		Email:   form.AdminEmail,
+		Passwd:  form.AdminPasswd,
+		IsAdmin: true,
+	}
+	overwriteDefault := &user_model.CreateUserOverwriteOptions{
+		IsRestricted: optional.Some(false),
+		IsActive:     optional.Some(true),
+	}
+
+	if err := user_model.CreateUser(ctx, u, &user_model.Meta{}, overwriteDefault); err != nil {
+		if !user_model.IsErrUserAlreadyExist(err) {
+			return nil, fmt.Errorf("create initial admin: %w", err)
+		}
+		log.Info("Admin account already exists")
+		u, err = user_model.GetUserByName(ctx, u.Name)
+		if err != nil {
+			return nil, fmt.Errorf("load existing initial admin: %w", err)
+		}
+	}
+	return u, nil
+}
+
+func AutoInstall(ctx std_context.Context) error {
+	if setting.InstallLock {
+		return nil
+	}
+	if !setting.InstallAutoConfiguredViaEnvironment() {
+		return fmt.Errorf("unattended install requires database environment and %s, %s, %s", setting.InstallAdminNameEnv, setting.InstallAdminPasswordEnv, setting.InstallAdminEmailEnv)
+	}
+
+	form := prepareInstallForm()
+	applyInstallAdminEnvironment(&form)
+
+	if form.AppURL != "" && form.AppURL[len(form.AppURL)-1] != '/' {
+		form.AppURL += "/"
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("test git: %w", err)
+	}
+
+	setting.Database.LogSQL = !setting.IsProd
+
+	shouldInstall, err := checkDatabaseForAutoInstall(ctx)
+	if err != nil {
+		return err
+	}
+	if !shouldInstall {
+		return forceInstallLock()
+	}
+	if err := prepareInstallPaths(&form); err != nil {
+		return err
+	}
+	if err := validateInitialAdmin(&form); err != nil {
+		return err
+	}
+	if err := db.InitEngineWithMigration(ctx, versioned_migration.Migrate); err != nil {
+		db.UnsetDefaultEngine()
+		return fmt.Errorf("run database migrations: %w", err)
+	}
+	if err := saveInstallConfig(&form); err != nil {
+		return err
+	}
+
+	db.UnsetDefaultEngine()
+
+	setting.InitCfgProvider(setting.CustomConf)
+	setting.LoadCommonSettings()
+	setting.MustInstalled()
+	setting.LoadDBSetting()
+	if err := common.InitDBEngine(ctx); err != nil {
+		return fmt.Errorf("initialize installed database engine: %w", err)
+	}
+	if _, err := createInitialAdmin(ctx, &form); err != nil {
+		return err
+	}
+
+	setting.ClearEnvConfigKeys()
+	log.Info("First-time unattended install finished!")
+	return nil
+}
+
+func EnsureInitialAdmin(ctx std_context.Context) error {
+	form := forms.InstallForm{}
+	if !applyInstallAdminEnvironment(&form) {
+		return nil
+	}
+
+	hasUsers, err := hasIndividualUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("check user table before initial admin bootstrap: %w", err)
+	}
+	if hasUsers {
+		return nil
+	}
+	if err := validateInitialAdmin(&form); err != nil {
+		return err
+	}
+
+	if _, err := createInitialAdmin(ctx, &form); err != nil {
+		return err
+	}
+	log.Info("Initial admin account created from environment")
+	return nil
 }
 
 // SubmitInstall response for submit install items
@@ -480,6 +866,7 @@ func SubmitInstall(ctx *context.Context) {
 	}
 
 	setting.EnvironmentToConfig(cfg, os.Environ())
+	cfg.Section("security").Key("INSTALL_LOCK").SetValue("true")
 
 	if err = cfg.SaveTo(setting.CustomConf); err != nil {
 		ctx.RenderWithErrDeprecated(ctx.Tr("install.save_config_failed", err), tplInstall, &form)
