@@ -4,6 +4,7 @@ import type {HtmxResponseInfo} from 'htmx.org';
 import {showErrorToast} from './modules/toast.ts';
 
 import {initDashboardRepoList} from './features/dashboard.ts';
+import {initNavbarQuickAccess} from './features/navbar-quick-access.ts';
 import {initGlobalCopyToClipboardListener} from './features/clipboard.ts';
 import {initRepoGraphGit} from './features/repo-graph.ts';
 import {initHeatmap} from './features/heatmap.ts';
@@ -115,6 +116,7 @@ const initPerformanceTracer = callInitFunctions([
   initAdminSelfCheck,
 
   initDashboardRepoList,
+  initNavbarQuickAccess,
 
   initNotificationCount,
 

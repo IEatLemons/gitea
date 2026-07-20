@@ -343,6 +343,7 @@
   "home.uname_holder": "Username or Email Address",
   "home.password_holder": "Password",
   "home.switch_dashboard_context": "Switch Dashboard Context",
+  "home.quick_access": "My",
   "home.my_repos": "Repositories",
   "home.show_more_repos": "Show more repositories…",
   "home.collaborative_repos": "Collaborative Repositories",

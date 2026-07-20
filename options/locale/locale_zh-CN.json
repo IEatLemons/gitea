@@ -336,6 +336,7 @@
   "home.uname_holder": "用户名或邮箱",
   "home.password_holder": "密码",
   "home.switch_dashboard_context": "切换控制面板用户",
+  "home.quick_access": "我的",
   "home.my_repos": "仓库列表",
   "home.show_more_repos": "显示更多仓库…",
   "home.collaborative_repos": "参与协作的仓库",

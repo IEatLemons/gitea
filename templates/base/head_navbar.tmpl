@@ -4,6 +4,26 @@
 		<a class="item" id="navbar-logo" href="{{AppSubUrl}}/" aria-label="{{if .IsSigned}}{{ctx.Locale.Tr "dashboard"}}{{else}}{{ctx.Locale.Tr "home_title"}}{{end}}">
 			<img width="30" height="30" src="{{AssetUrlPrefix}}/img/logo.svg" alt="{{ctx.Locale.Tr "logo"}}" aria-hidden="true">
 		</a>
+		{{if and .IsSigned (not .MustChangePassword)}}
+			<div
+				id="navbar-quick-access"
+				class="item navbar-quick-access"
+				data-uid="{{.SignedUser.ID}}"
+				data-can-create-organization="{{.SignedUser.CanCreateOrganization}}"
+				data-text-quick-access="{{ctx.Locale.Tr "home.quick_access"}}"
+				data-text-repository="{{ctx.Locale.Tr "repository"}}"
+				data-text-organization="{{ctx.Locale.Tr "organization"}}"
+				data-text-search-repos="{{ctx.Locale.Tr "search.repo_kind"}}"
+				data-text-search-orgs="{{ctx.Locale.Tr "search.org_kind"}}"
+				data-text-no-repo="{{ctx.Locale.Tr "home.empty_repo"}}"
+				data-text-no-org="{{ctx.Locale.Tr "home.empty_org"}}"
+				data-text-new-repo="{{ctx.Locale.Tr "new_repo"}}"
+				data-text-new-org="{{ctx.Locale.Tr "new_org"}}"
+				data-text-loading="{{ctx.Locale.Tr "loading"}}"
+				data-text-org-visibility-limited="{{ctx.Locale.Tr "org.settings.visibility.limited_shortname"}}"
+				data-text-org-visibility-private="{{ctx.Locale.Tr "org.settings.visibility.private_shortname"}}"
+			></div>
+		{{end}}
 
 		<!-- mobile right menu, it must be here because in mobile view, each item is a flex column, the first item is a full row column -->
 		<div class="ui secondary menu navbar-mobile-right only-mobile">

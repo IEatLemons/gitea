@@ -525,6 +525,7 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 	m.Post("/-/web-banner/dismiss", misc.WebBannerDismiss)
 	m.Get("/-/web-theme/list", misc.WebThemeList)
 	m.Post("/-/web-theme/apply", optSignIn, misc.WebThemeApply)
+	m.Get("/-/navbar/organizations", reqSignIn, user.NavbarOrganizations)
 
 	m.Group("/explore", func() {
 		m.Get("", func(ctx *context.Context) {
