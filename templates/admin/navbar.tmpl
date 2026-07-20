@@ -48,7 +48,7 @@
 		</details>
 		<!-- Webhooks and OAuth can be both disabled here, so add this if statement to display different ui -->
 		{{if and (not DisableWebhooks) .EnableOAuth2}}
-			<details class="item toggleable-item" {{if or .PageIsAdminDefaultHooks .PageIsAdminSystemHooks .PageIsAdminApplications}}open{{end}}>
+			<details class="item toggleable-item" {{if or .PageIsAdminDefaultHooks .PageIsAdminSystemHooks .PageIsAdminApplications .PageIsAdminDeployments}}open{{end}}>
 				<summary>{{ctx.Locale.Tr "admin.integrations"}}</summary>
 				<div class="menu">
 					<a class="{{if .PageIsAdminApplications}}active {{end}}item" href="{{AppSubUrl}}/-/admin/applications">
@@ -56,6 +56,9 @@
 					</a>
 					<a class="{{if or .PageIsAdminDefaultHooks .PageIsAdminSystemHooks}}active {{end}}item" href="{{AppSubUrl}}/-/admin/hooks">
 						{{ctx.Locale.Tr "admin.hooks"}}
+					</a>
+					<a class="{{if .PageIsAdminDeployments}}active {{end}}item" href="{{AppSubUrl}}/-/admin/deployments">
+						{{ctx.Locale.Tr "admin.deployments.title"}}
 					</a>
 				</div>
 			</details>
@@ -70,6 +73,9 @@
 					{{ctx.Locale.Tr "settings.applications"}}
 				</a>
 			{{end}}
+			<a class="{{if .PageIsAdminDeployments}}active {{end}}item" href="{{AppSubUrl}}/-/admin/deployments">
+				{{ctx.Locale.Tr "admin.deployments.title"}}
+			</a>
 		{{end}}
 		{{if .EnableActions}}
 		<details class="item toggleable-item" {{if or .PageIsSharedSettingsRunners .PageIsSharedSettingsVariables}}open{{end}}>

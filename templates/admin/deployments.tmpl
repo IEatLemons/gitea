@@ -1,0 +1,65 @@
+{{template "admin/layout_head" (dict "ctxData" . "pageClass" "admin deployments")}}
+	<div class="admin-setting-content">
+		<h4 class="ui top attached header">{{ctx.Locale.Tr "admin.deployments.connections"}}</h4>
+		<div class="ui attached segment">
+			<form class="ui form" method="post" action="{{AppSubUrl}}/-/admin/deployments/connections">
+				{{.CsrfTokenHtml}}
+				<div class="four fields">
+					<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.provider"}}</label><select class="ui dropdown" name="provider"><option value="railway">Railway</option><option value="vercel">Vercel</option></select></div>
+					<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.name"}}</label><input name="name" maxlength="255" required></div>
+					<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.token"}}</label><input name="token" type="password" autocomplete="new-password" required></div>
+					<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.scope_id"}}</label><input name="scope_id" maxlength="255"></div>
+				</div>
+				<button class="ui primary button" type="submit">{{ctx.Locale.Tr "admin.deployments.add_connection"}}</button>
+			</form>
+		</div>
+
+		{{range .DeploymentConnections}}
+			<div class="ui attached segment">
+				<form class="ui form" method="post" action="{{AppSubUrl}}/-/admin/deployments/connections/{{.ID}}/update">
+					{{$.CsrfTokenHtml}}
+					<div class="four fields">
+						<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.provider"}}</label><input value="{{.Provider}}" disabled></div>
+						<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.name"}}</label><input name="name" value="{{.Name}}" required></div>
+						<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.token_optional"}}</label><input name="token" type="password" autocomplete="new-password"></div>
+						<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.scope_id"}}</label><input name="scope_id" value="{{.ScopeID}}"></div>
+					</div>
+					<div class="inline field"><div class="ui checkbox"><input type="checkbox" name="is_active" value="true" {{if .IsActive}}checked{{end}}><label>{{ctx.Locale.Tr "admin.deployments.active"}}</label></div></div>
+					<button class="ui primary button" type="submit">{{ctx.Locale.Tr "save"}}</button>
+					<a class="ui button" href="{{AppSubUrl}}/-/admin/deployments?connection_id={{.ID}}">{{ctx.Locale.Tr "admin.deployments.discover"}}</a>
+				</form>
+				<div class="tw-mt-3 tw-flex tw-gap-2 tw-flex-wrap">
+					<form method="post" action="{{AppSubUrl}}/-/admin/deployments/connections/{{.ID}}/test">{{$.CsrfTokenHtml}}<button class="ui small button">{{ctx.Locale.Tr "admin.deployments.test"}}</button></form>
+					<form method="post" action="{{AppSubUrl}}/-/admin/deployments/connections/{{.ID}}/sync">{{$.CsrfTokenHtml}}<button class="ui small button">{{ctx.Locale.Tr "admin.deployments.sync"}}</button></form>
+					<form method="post" action="{{AppSubUrl}}/-/admin/deployments/connections/{{.ID}}/delete">{{$.CsrfTokenHtml}}<button class="ui small red button" data-tooltip-content="{{ctx.Locale.Tr "admin.deployments.delete_connection_help"}}">{{ctx.Locale.Tr "delete"}}</button></form>
+				</div>
+				{{if .LastSyncUnix}}<div class="ui small text tw-mt-2">{{ctx.Locale.Tr "admin.deployments.last_sync"}}: {{DateUtils.TimeSince .LastSyncUnix}} · {{.LastSyncStatus}}{{if .LastSyncError}} · {{.LastSyncError}}{{end}}</div>{{end}}
+			</div>
+		{{end}}
+
+		{{with .SelectedDeploymentConnection}}
+			<h4 class="ui top attached header tw-mt-4">{{ctx.Locale.Tr "admin.deployments.add_binding" .Name}}</h4>
+			<div class="ui attached segment">
+				{{if $.DiscoveryError}}<div class="ui negative message">{{$.DiscoveryError}}</div>{{else}}
+				<form class="ui form" method="post" action="{{AppSubUrl}}/-/admin/deployments/connections/{{.ID}}/bindings">
+					{{$.CsrfTokenHtml}}
+					<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.remote_target"}}</label><select class="ui search dropdown" name="target" required>{{range $.DeploymentTargets}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select></div>
+					<div class="three fields">
+						<div class="required field"><label>{{ctx.Locale.Tr "admin.deployments.repository"}}</label><input name="repository" placeholder="owner/repository" required></div>
+						<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.display_name"}}</label><input name="display_name"></div>
+						<div class="field"><label>{{ctx.Locale.Tr "admin.deployments.branch_filter"}}</label><input name="branch_filter"><div class="help">{{ctx.Locale.Tr "admin.deployments.branch_filter_help"}}</div></div>
+					</div>
+					<button class="ui primary button">{{ctx.Locale.Tr "admin.deployments.create_binding"}}</button>
+				</form>
+				{{end}}
+			</div>
+		{{end}}
+
+		<h4 class="ui top attached header tw-mt-4">{{ctx.Locale.Tr "admin.deployments.bindings"}}</h4>
+		<div class="ui attached segment">
+			<table class="ui very basic striped table"><thead><tr><th>{{ctx.Locale.Tr "admin.deployments.repository"}}</th><th>{{ctx.Locale.Tr "admin.deployments.connection"}}</th><th>{{ctx.Locale.Tr "admin.deployments.remote_target"}}</th><th>{{ctx.Locale.Tr "admin.deployments.status"}}</th><th></th></tr></thead><tbody>
+			{{range .DeploymentBindings}}<tr><td><a href="{{AppSubUrl}}/{{.RepoName}}">{{.RepoName}}</a></td><td>{{.Provider}} / {{.ConnectionName}}</td><td>{{.Binding.ProjectName}}{{if .Binding.ServiceName}} / {{.Binding.ServiceName}}{{end}} / {{.Binding.EnvironmentName}}{{if .Binding.BranchFilter}} ({{.Binding.BranchFilter}}){{end}}</td><td>{{if not .Binding.RemoteValid}}{{ctx.Locale.Tr "admin.deployments.invalid_remote"}}{{else if .Binding.LastSyncError}}{{.Binding.LastSyncError}}{{else}}{{ctx.Locale.Tr "admin.deployments.ready"}}{{end}}</td><td class="right aligned"><form method="post" action="{{AppSubUrl}}/-/admin/deployments/bindings/{{.Binding.ID}}/delete">{{$.CsrfTokenHtml}}<button class="ui tiny red button">{{ctx.Locale.Tr "delete"}}</button></form></td></tr>{{else}}<tr><td colspan="5">{{ctx.Locale.Tr "admin.deployments.no_bindings"}}</td></tr>{{end}}
+			</tbody></table>
+		</div>
+	</div>
+{{template "admin/layout_footer" .}}

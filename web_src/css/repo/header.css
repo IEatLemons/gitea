@@ -15,6 +15,65 @@
   margin-bottom: 4px;
 }
 
+.deployment-banner {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.deployment-banner > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--color-text-light);
+  font-weight: var(--font-weight-semibold);
+}
+
+.deployment-banner-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.deployment-banner-item {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--border-radius);
+  background: var(--color-box-body);
+}
+
+.deployment-banner-heading,
+.deployment-banner-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.deployment-banner-target,
+.deployment-banner-state,
+.deployment-banner-error {
+  margin-top: 4px;
+  color: var(--color-text-light);
+  font-size: 12px;
+}
+
+.deployment-banner-error {
+  color: var(--color-red);
+}
+
+@media (max-width: 767.98px) {
+  .deployment-banner > details:not([open]) .deployment-banner-items {
+    display: none;
+  }
+
+  .deployment-banner-items {
+    grid-template-columns: 1fr;
+  }
+}
+
 .repo-header .flex-item {
   padding: 0;
 }

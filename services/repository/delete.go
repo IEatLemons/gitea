@@ -11,6 +11,7 @@ import (
 	activities_model "code.gitea.io/gitea/models/activities"
 	admin_model "code.gitea.io/gitea/models/admin"
 	"code.gitea.io/gitea/models/db"
+	deployment_model "code.gitea.io/gitea/models/deployment"
 	git_model "code.gitea.io/gitea/models/git"
 	issues_model "code.gitea.io/gitea/models/issues"
 	"code.gitea.io/gitea/models/organization"
@@ -142,6 +143,10 @@ func DeleteRepositoryDirectly(ctx context.Context, repoID int64, ignoreOrgTeams 
 	// &actions_model.ActionRunner{RepoID: repoID} does only handle ephemeral repository runners
 	if err := actions_service.CleanupEphemeralRunnersByPickedTaskOfRepo(ctx, repoID); err != nil {
 		return fmt.Errorf("cleanupEphemeralRunners: %w", err)
+	}
+
+	if err := deployment_model.DeleteBindingsByRepoID(ctx, repoID); err != nil {
+		return fmt.Errorf("deleteDeploymentBindings: %w", err)
 	}
 
 	if err := db.DeleteBeans(ctx,

@@ -242,4 +242,31 @@
 		</overflow-menu>
 	</div>
 	<div class="ui tabs divider"></div>
+	{{if .DeploymentBannerItems}}
+	<div class="ui container deployment-banner">
+		<details open>
+			<summary>{{svg "octicon-rocket" 16}} {{ctx.Locale.Tr "repo.deployments.title"}}</summary>
+			<div class="deployment-banner-items">
+				{{range .DeploymentBannerItems}}
+				<div class="deployment-banner-item">
+					<div class="deployment-banner-heading"><strong>{{.DisplayName}}</strong><span class="ui mini basic label">{{.Provider}}</span>{{if .Stale}}<span class="ui mini basic yellow label">{{ctx.Locale.Tr "repo.deployments.stale"}}</span>{{end}}{{if not .RemoteValid}}<span class="ui mini basic red label">{{ctx.Locale.Tr "repo.deployments.invalid"}}</span>{{end}}</div>
+					<div class="deployment-banner-target">{{.ProjectName}}{{if .ServiceName}} / {{.ServiceName}}{{end}} / {{.EnvironmentName}}</div>
+					{{if .HasSnapshot}}
+					<div class="deployment-banner-state">
+						<span>{{ctx.Locale.Tr "repo.deployments.active"}}:</span>
+						{{if .Active.ID}}<span class="ui mini {{.Active.StatusClass}} label">{{.Active.Status}}</span>{{if .Active.CommitSHA}}{{if .Active.CommitLink}}<a class="muted" href="{{.Active.CommitLink}}"><code>{{.Active.ShortSHA}}</code></a>{{else}}<code>{{.Active.ShortSHA}}</code>{{end}}{{end}}{{if .Active.CreatedUnix}}<span>{{DateUtils.TimeSince .Active.CreatedUnix}}</span>{{end}}{{if .Active.URL}}<a href="{{.Active.URL}}" target="_blank" rel="noopener noreferrer">{{svg "octicon-link-external" 14}}</a>{{end}}{{else}}<span>{{ctx.Locale.Tr "repo.deployments.none"}}</span>{{end}}
+					</div>
+					<div class="deployment-banner-state">
+						<span>{{ctx.Locale.Tr "repo.deployments.latest"}}:</span>
+						{{if .Latest.ID}}<span class="ui mini {{.Latest.StatusClass}} label">{{.Latest.Status}}</span>{{if .Latest.CommitSHA}}{{if .Latest.CommitLink}}<a class="muted" href="{{.Latest.CommitLink}}"><code>{{.Latest.ShortSHA}}</code></a>{{else}}<code>{{.Latest.ShortSHA}}</code>{{end}}{{end}}{{if .Latest.CreatedUnix}}<span>{{DateUtils.TimeSince .Latest.CreatedUnix}}</span>{{end}}{{if .Latest.URL}}<a href="{{.Latest.URL}}" target="_blank" rel="noopener noreferrer">{{svg "octicon-link-external" 14}}</a>{{end}}{{else}}<span>{{ctx.Locale.Tr "repo.deployments.none"}}</span>{{end}}
+					</div>
+					{{else}}<div class="deployment-banner-state">{{ctx.Locale.Tr "repo.deployments.waiting_sync"}}</div>{{end}}
+					{{if .LastSyncUnix}}<div class="deployment-banner-state">{{ctx.Locale.Tr "repo.deployments.updated"}} {{DateUtils.TimeSince .LastSyncUnix}}</div>{{end}}
+					{{if .LastSyncError}}<div class="deployment-banner-error">{{ctx.Locale.Tr "repo.deployments.sync_error"}}</div>{{end}}
+				</div>
+				{{end}}
+			</div>
+		</details>
+	</div>
+	{{end}}
 </div>

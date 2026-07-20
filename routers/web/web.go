@@ -863,6 +863,19 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 			})
 		}, oauth2Enabled)
 
+		m.Group("/deployments", func() {
+			m.Get("", admin.Deployments)
+			m.Post("/connections", admin.CreateDeploymentConnection)
+			m.Group("/connections/{id}", func() {
+				m.Post("/update", admin.UpdateDeploymentConnection)
+				m.Post("/test", admin.TestDeploymentConnection)
+				m.Post("/sync", admin.SyncDeploymentConnection)
+				m.Post("/delete", admin.DeleteDeploymentConnection)
+				m.Post("/bindings", admin.CreateDeploymentBinding)
+			})
+			m.Post("/bindings/{id}/delete", admin.DeleteDeploymentBinding)
+		})
+
 		m.Group("/actions", func() {
 			m.Get("", misc.LocationRedirect("./actions/runners"))
 			addSettingsRunnersRoutes()

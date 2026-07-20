@@ -16,6 +16,7 @@ import (
 
 	asymkey_model "code.gitea.io/gitea/models/asymkey"
 	"code.gitea.io/gitea/models/db"
+	deployment_model "code.gitea.io/gitea/models/deployment"
 	git_model "code.gitea.io/gitea/models/git"
 	issues_model "code.gitea.io/gitea/models/issues"
 	access_model "code.gitea.io/gitea/models/perm/access"
@@ -31,6 +32,7 @@ import (
 	"code.gitea.io/gitea/modules/optional"
 	repo_module "code.gitea.io/gitea/modules/repository"
 	"code.gitea.io/gitea/modules/setting"
+	"code.gitea.io/gitea/modules/timeutil"
 	"code.gitea.io/gitea/modules/util"
 	asymkey_service "code.gitea.io/gitea/services/asymkey"
 
@@ -100,6 +102,114 @@ type Repository struct {
 	CommitsCount int64
 
 	PullRequestCtx *PullRequestContext
+}
+
+// DeploymentBannerDeployment is one cached deployment rendered in the repository header.
+type DeploymentBannerDeployment struct {
+	ID          string
+	CommitSHA   string
+	ShortSHA    string
+	CommitLink  string
+	Status      deployment_model.Status
+	StatusClass string
+	URL         string
+	CreatedUnix timeutil.TimeStamp
+}
+
+// DeploymentBannerItem is one platform environment rendered in the repository header.
+type DeploymentBannerItem struct {
+	Provider        deployment_model.Provider
+	DisplayName     string
+	ProjectName     string
+	ServiceName     string
+	EnvironmentName string
+	RemoteValid     bool
+	LastSyncError   string
+	LastSyncUnix    timeutil.TimeStamp
+	Stale           bool
+	HasSnapshot     bool
+	Active          DeploymentBannerDeployment
+	Latest          DeploymentBannerDeployment
+}
+
+func deploymentStatusClass(status deployment_model.Status) string {
+	switch status {
+	case deployment_model.StatusSuccess:
+		return "green"
+	case deployment_model.StatusFailure:
+		return "red"
+	case deployment_model.StatusQueued, deployment_model.StatusRunning:
+		return "yellow"
+	case deployment_model.StatusCanceled:
+		return "grey"
+	default:
+		return ""
+	}
+}
+
+func loadDeploymentBanner(ctx *Context, repo *repo_model.Repository) {
+	bindings, err := deployment_model.ListBindingsByRepo(ctx, repo.ID)
+	if err != nil {
+		log.Error("Unable to load deployment bindings for repository %d: %v", repo.ID, err)
+		return
+	}
+	if len(bindings) == 0 {
+		return
+	}
+	var gitRepo *git.Repository
+	commitLink := func(sha string) string {
+		if sha == "" {
+			return ""
+		}
+		if gitRepo == nil {
+			gitRepo, err = gitrepo.OpenRepository(ctx, repo)
+			if err != nil {
+				return ""
+			}
+		}
+		if _, err := gitRepo.GetCommit(sha); err != nil {
+			return ""
+		}
+		return repo.Link() + "/commit/" + url.PathEscape(sha)
+	}
+	defer func() {
+		if gitRepo != nil {
+			gitRepo.Close()
+		}
+	}()
+	items := make([]DeploymentBannerItem, 0, len(bindings))
+	for _, binding := range bindings {
+		if binding.Connection == nil || !binding.Connection.IsActive {
+			continue
+		}
+		item := DeploymentBannerItem{
+			Provider: binding.Connection.Provider, DisplayName: binding.DisplayName,
+			ProjectName: binding.ProjectName, ServiceName: binding.ServiceName,
+			EnvironmentName: binding.EnvironmentName, RemoteValid: binding.RemoteValid,
+			LastSyncError: binding.LastSyncError,
+		}
+		if snapshot := binding.Snapshot; snapshot != nil {
+			item.HasSnapshot = true
+			item.Stale = snapshot.IsStale()
+			item.LastSyncUnix = snapshot.LastSuccessfulSyncUnix
+			item.Active = DeploymentBannerDeployment{
+				ID: snapshot.ActiveDeploymentID, CommitSHA: snapshot.ActiveCommitSHA,
+				ShortSHA: deployment_model.ShortSHA(snapshot.ActiveCommitSHA), CommitLink: commitLink(snapshot.ActiveCommitSHA),
+				Status: snapshot.ActiveStatus, StatusClass: deploymentStatusClass(snapshot.ActiveStatus),
+				URL: snapshot.ActiveURL, CreatedUnix: snapshot.ActiveCreatedUnix,
+			}
+			item.Latest = DeploymentBannerDeployment{
+				ID: snapshot.LatestDeploymentID, CommitSHA: snapshot.LatestCommitSHA,
+				ShortSHA: deployment_model.ShortSHA(snapshot.LatestCommitSHA), CommitLink: commitLink(snapshot.LatestCommitSHA),
+				Status: snapshot.LatestStatus, StatusClass: deploymentStatusClass(snapshot.LatestStatus),
+				URL: snapshot.LatestURL, CreatedUnix: snapshot.LatestCreatedUnix,
+			}
+		}
+		items = append(items, item)
+	}
+	if len(items) > 0 {
+		ctx.Data["DeploymentBannerItems"] = items
+	}
 }
 
 // CanWriteToBranch checks if the branch is writable by the user
@@ -586,6 +696,7 @@ func RepoAssignment(ctx *Context) {
 	ctx.Data["PageTitleCommon"] = repo.Name + " - " + setting.AppName
 	ctx.Data["Repository"] = repo
 	ctx.Data["Owner"] = ctx.Repo.Repository.Owner
+	loadDeploymentBanner(ctx, repo)
 	ctx.Data["CanWriteCode"] = ctx.Repo.CanWrite(unit_model.TypeCode)
 	ctx.Data["CanWriteIssues"] = ctx.Repo.CanWrite(unit_model.TypeIssues)
 	ctx.Data["CanWritePulls"] = ctx.Repo.CanWrite(unit_model.TypePullRequests)
