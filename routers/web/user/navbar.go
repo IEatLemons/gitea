@@ -60,7 +60,7 @@ func NavbarOrganizations(ctx *context.Context) {
 			FullName:   org.FullName,
 			NumRepos:   org.NumRepos,
 			Visibility: org.Visibility.String(),
-			Link:       org.OrganisationLink(),
+			Link:       org.HomeLink(),
 		})
 	}
 
