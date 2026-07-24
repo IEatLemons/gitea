@@ -16,6 +16,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestAdminEntryAllowsPromotedAdminUser(t *testing.T) {
+	defer tests.PrepareTestEnv(t)()
+
+	session := loginUser(t, "user2")
+	req := NewRequest(t, "GET", "/admin")
+	session.MakeRequest(t, req, http.StatusForbidden)
+
+	adminSession := loginUser(t, "user1")
+	req = NewRequestWithValues(t, "POST", "/-/admin/users/2/edit", map[string]string{
+		"login_type":                "0-0",
+		"login_name":                "user2",
+		"email":                     "user2@example.com",
+		"max_repo_creation":         "-1",
+		"active":                    "on",
+		"admin":                     "on",
+		"allow_create_organization": "on",
+		"visibility":                "0",
+	})
+	adminSession.MakeRequest(t, req, http.StatusSeeOther)
+
+	user2 := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: 2})
+	assert.True(t, user2.IsAdmin)
+
+	session = loginUser(t, "user2")
+	req = NewRequest(t, "GET", "/admin")
+	resp := session.MakeRequest(t, req, http.StatusSeeOther)
+	assert.Equal(t, "/-/admin", resp.Header().Get("Location"))
+
+	req = NewRequest(t, "GET", "/-/admin")
+	session.MakeRequest(t, req, http.StatusOK)
+}
+
 func TestAdminViewUsers(t *testing.T) {
 	defer tests.PrepareTestEnv(t)()
 

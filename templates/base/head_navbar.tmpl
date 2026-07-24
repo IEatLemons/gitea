@@ -47,6 +47,9 @@
 				{{end}}
 			{{end}}
 			<a class="item{{if .PageIsExplore}} active{{end}}" href="{{AppSubUrl}}/explore/repos">{{ctx.Locale.Tr "explore_title"}}</a>
+			{{if .IsAdmin}}
+				<a class="item{{if .PageIsAdmin}} active{{end}}" href="{{AppSubUrl}}/admin">{{ctx.Locale.Tr "admin_panel"}}</a>
+			{{end}}
 		{{else if .IsLandingPageOrganizations}}
 			<a class="item{{if .PageIsExplore}} active{{end}}" href="{{AppSubUrl}}/explore/organizations">{{ctx.Locale.Tr "explore_title"}}</a>
 		{{else}}
@@ -145,7 +148,7 @@
 					</a>
 					{{if .IsAdmin}}
 					<div class="divider"></div>
-					<a class="{{if .PageIsAdmin}}active {{end}}item" href="{{AppSubUrl}}/-/admin">
+					<a class="{{if .PageIsAdmin}}active {{end}}item" href="{{AppSubUrl}}/admin">
 						{{svg "octicon-server"}}
 						{{ctx.Locale.Tr "admin_panel"}}
 					</a>

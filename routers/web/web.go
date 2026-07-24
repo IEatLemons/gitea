@@ -753,6 +753,8 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 	adminReq := verifyAuthWithOptions(&common.VerifyOptions{SignInRequired: true, AdminRequired: true})
 
 	// ***** START: Admin *****
+	m.Get("/admin", adminReq, misc.LocationRedirect(setting.AppSubURL+"/-/admin"))
+
 	m.Group("/-/admin", func() {
 		m.Get("", admin.Dashboard)
 		m.Get("/system_status", admin.SystemStatus)
