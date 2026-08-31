@@ -84,6 +84,9 @@ var (
 	Domain                     string
 	HTTPAddr                   string
 	HTTPPort                   string
+	AdminHTTPAddr              string
+	AdminHTTPPort              string
+	AdminUseProxyProtocol      bool
 	LocalUseProxyProtocol      bool
 	RedirectOtherPort          bool
 	RedirectorUseProxyProtocol bool
@@ -185,6 +188,8 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	Domain = sec.Key("DOMAIN").MustString("localhost")
 	HTTPAddr = sec.Key("HTTP_ADDR").MustString("0.0.0.0")
 	HTTPPort = sec.Key("HTTP_PORT").MustString("3000")
+	AdminHTTPAddr = sec.Key("ADMIN_HTTP_ADDR").MustString(HTTPAddr)
+	AdminHTTPPort = strings.TrimSpace(sec.Key("ADMIN_HTTP_PORT").String())
 
 	// DEPRECATED should not be removed because users maybe upgrade from lower version to the latest version
 	// if these are removed, the warning will not be shown
@@ -272,6 +277,7 @@ func loadServerFrom(rootCfg ConfigProvider) {
 		log.Fatal("Invalid PROTOCOL %q", protocolCfg)
 	}
 	UseProxyProtocol = sec.Key("USE_PROXY_PROTOCOL").MustBool(false)
+	AdminUseProxyProtocol = sec.Key("ADMIN_USE_PROXY_PROTOCOL").MustBool(UseProxyProtocol)
 	ProxyProtocolTLSBridging = sec.Key("PROXY_PROTOCOL_TLS_BRIDGING").MustBool(false)
 	ProxyProtocolHeaderTimeout = sec.Key("PROXY_PROTOCOL_HEADER_TIMEOUT").MustDuration(5 * time.Second)
 	ProxyProtocolAcceptUnknown = sec.Key("PROXY_PROTOCOL_ACCEPT_UNKNOWN").MustBool(false)
@@ -343,6 +349,16 @@ func loadServerFrom(rootCfg ConfigProvider) {
 	RedirectorUseProxyProtocol = sec.Key("REDIRECTOR_USE_PROXY_PROTOCOL").MustBool(UseProxyProtocol)
 	if len(StaticRootPath) == 0 {
 		StaticRootPath = AppWorkPath
+	}
+	if AdminHTTPPort != "" {
+		switch Protocol {
+		case HTTP, HTTPS:
+			if AdminHTTPAddr == HTTPAddr && AdminHTTPPort == HTTPPort {
+				log.Fatal("ADMIN_HTTP_PORT must not use the same address and port as HTTP_PORT")
+			}
+		default:
+			log.Fatal("ADMIN_HTTP_PORT can only be used with http or https PROTOCOL")
+		}
 	}
 	StaticRootPath = sec.Key("STATIC_ROOT_PATH").MustString(StaticRootPath)
 	StaticCacheTime = sec.Key("STATIC_CACHE_TIME").MustDuration(6 * time.Hour)

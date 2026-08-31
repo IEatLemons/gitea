@@ -229,6 +229,13 @@ func serveInstalled(c *cli.Command) error {
 
 	// Set up Chi routes
 	webRoutes := routers.NormalRoutes()
+	if setting.AdminHTTPPort != "" {
+		go func() {
+			if err := listenAdmin(webRoutes); err != nil {
+				log.Fatal("Failed to start admin web server: %v", err)
+			}
+		}()
+	}
 	err := listen(webRoutes, true)
 	<-graceful.GetManager().Done()
 	log.Info("PID: %d Gitea Web Finished", os.Getpid())
@@ -328,6 +335,102 @@ func setPort(port string) error {
 		}
 	}
 	return nil
+}
+
+func isAdminPortPathAllowed(req *http.Request) bool {
+	reqPath := req.URL.Path
+	if setting.AppSubURL != "" {
+		if reqPath == setting.AppSubURL {
+			return req.Method == http.MethodHead
+		}
+		reqPath = strings.TrimPrefix(reqPath, setting.AppSubURL)
+	}
+
+	if reqPath == "/" {
+		return req.Method == http.MethodHead
+	}
+
+	if reqPath == "/admin" || reqPath == "/-/admin" || strings.HasPrefix(reqPath, "/-/admin/") {
+		return true
+	}
+
+	switch reqPath {
+	case "/api/healthz",
+		"/favicon.ico",
+		"/apple-touch-icon.png",
+		"/apple-touch-icon-precomposed.png",
+		"/robots.txt",
+		"/-/web-banner/dismiss",
+		"/-/web-theme/list",
+		"/-/web-theme/apply",
+		"/-/navbar/organizations",
+		"/user/login",
+		"/user/logout",
+		"/user/forgot_password",
+		"/user/recover_account",
+		"/user/activate",
+		"/user/activate_email",
+		"/user/link_account",
+		"/user/link_account_signin",
+		"/user/link_account_signup",
+		"/user/settings/change_password":
+		return true
+	}
+
+	return strings.HasPrefix(reqPath, "/assets/") ||
+		strings.HasPrefix(reqPath, "/avatars/") ||
+		strings.HasPrefix(reqPath, "/repo-avatars/") ||
+		strings.HasPrefix(reqPath, "/captcha/") ||
+		strings.HasPrefix(reqPath, "/user/login/") ||
+		strings.HasPrefix(reqPath, "/user/openid/") ||
+		strings.HasPrefix(reqPath, "/user/two_factor") ||
+		strings.HasPrefix(reqPath, "/user/webauthn") ||
+		strings.HasPrefix(reqPath, "/user/oauth2/") ||
+		strings.HasPrefix(reqPath, "/login/oauth/")
+}
+
+func adminPortHandler(next http.Handler) http.Handler {
+	adminPath := setting.AppSubURL + "/admin"
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet && req.URL.Path == setting.AppSubURL+"/" {
+			http.Redirect(w, req, adminPath, http.StatusSeeOther)
+			return
+		}
+
+		if isAdminPortPathAllowed(req) {
+			next.ServeHTTP(w, req)
+			return
+		}
+
+		http.NotFound(w, req)
+	})
+}
+
+func listenAdmin(m http.Handler) error {
+	listenAddr := net.JoinHostPort(setting.AdminHTTPAddr, setting.AdminHTTPPort)
+	_, _, finished := process.GetManager().AddTypedContext(graceful.GetManager().HammerContext(), "Web: Gitea Admin Server", process.SystemProcessType, true)
+	defer finished()
+
+	handler := adminPortHandler(m)
+	log.Info("Admin Listen: %v://%s%s", setting.Protocol, listenAddr, setting.AppSubURL)
+
+	var err error
+	switch setting.Protocol {
+	case setting.HTTP:
+		err = runHTTP("tcp", listenAddr, "Admin Web", handler, setting.AdminUseProxyProtocol)
+	case setting.HTTPS:
+		if setting.EnableAcme {
+			return fmt.Errorf("admin web server does not support ACME-managed HTTPS")
+		}
+		err = runHTTPS("tcp", listenAddr, "Admin Web", setting.CertFile, setting.KeyFile, handler, setting.AdminUseProxyProtocol, setting.ProxyProtocolTLSBridging)
+	default:
+		return fmt.Errorf("admin web server only supports http or https protocol")
+	}
+	if err != nil {
+		log.Critical("Failed to start admin server: %v", err)
+	}
+	log.Info("Admin HTTP Listener: %s Closed", listenAddr)
+	return err
 }
 
 func listen(m http.Handler, handleRedirector bool) error {
